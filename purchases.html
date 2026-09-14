@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Purchases — Pokii Dashboard</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="container">
+
+    <!-- LIST VIEW -->
+    <section id="list-view">
+      <div class="btn-row" style="justify-content:space-between; align-items:center;">
+        <h1 style="margin:20px 0 0">Purchases</h1>
+        <button class="btn" id="show-new-btn">+ New</button>
+      </div>
+      <div class="card" id="purchases-list">
+        <p class="spinner-text">Loading…</p>
+      </div>
+    </section>
+
+    <!-- DETAIL VIEW -->
+    <section id="detail-view" style="display:none">
+      <button class="btn secondary" id="back-from-detail">← Back</button>
+      <div class="card" id="detail-body"></div>
+    </section>
+
+    <!-- NEW / EDIT PURCHASE VIEW -->
+    <section id="form-view" style="display:none">
+      <button class="btn secondary" id="back-from-form">← Back</button>
+      <h1 id="form-heading">New purchase</h1>
+
+      <div class="card">
+        <label for="p-source">Source</label>
+        <input id="p-source" placeholder="eBay, Vinted, local, …" />
+
+        <label for="p-date">Order date</label>
+        <input id="p-date" type="date" />
+
+        <label for="p-account">Paid from</label>
+        <select id="p-account">
+          <option value="bit">Bit</option>
+          <option value="cash">Cash</option>
+          <option value="card">Card</option>
+        </select>
+
+        <label for="p-status" id="p-status-label">Status</label>
+        <select id="p-status">
+          <option value="ordered">Ordered</option>
+          <option value="shipped">Shipped</option>
+          <option value="received">Received</option>
+        </select>
+
+        <div class="row" style="display:flex; gap:8px;">
+          <div style="flex:1">
+            <label for="p-forwarder">Ships to</label>
+            <select id="p-forwarder">
+              <option value="">Me directly</option>
+              <option value="redbox">Redbox forwarder</option>
+              <option value="myus">MyUS forwarder</option>
+              <option value="other">Other forwarder</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label for="p-tracking">Tracking number (optional)</label>
+            <input id="p-tracking" placeholder="Seller's tracking #" />
+          </div>
+        </div>
+
+        <div class="row" style="display:flex; gap:8px;">
+          <div style="flex:1">
+            <label for="p-currency">Currency</label>
+            <select id="p-currency">
+              <option value="ILS">ILS ₪</option>
+              <option value="USD">USD $</option>
+              <option value="EUR">EUR €</option>
+              <option value="GBP">GBP £</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label for="p-fxrate">Exchange rate (1 unit → ₪)</label>
+            <input id="p-fxrate" type="number" step="0.0001" min="0.0001" value="1" disabled />
+          </div>
+        </div>
+        <p class="hint" id="fx-hint" style="display:none">Prices and shipping below are in the currency you picked — we'll convert to ₪ using this rate when you save.</p>
+      </div>
+
+      <div class="card" id="media-card">
+        <label for="p-media">Photo or video (optional)</label>
+        <input id="p-media" type="file" accept="image/*,video/*" />
+
+        <label for="p-hint">Note (optional)</label>
+        <textarea id="p-hint" placeholder="Anything worth telling the AI, or just describe the purchase if you're not attaching media"></textarea>
+
+        <div class="btn-row">
+          <button class="btn" id="analyze-btn" disabled>Analyze photo/video</button>
+          <button class="btn secondary" id="manual-btn">Skip — enter items manually</button>
+        </div>
+        <p class="spinner-text" id="analyze-status" style="display:none"></p>
+      </div>
+
+      <div class="card" id="draft-card" style="display:none">
+        <h3>Items <span class="hint">— review and fix anything the AI got wrong</span></h3>
+        <div id="draft-items"></div>
+        <button class="btn secondary" id="add-item-btn">+ Add item</button>
+
+        <label for="p-shipping" id="p-shipping-label">Shipping cost (₪, split across items automatically)</label>
+        <input id="p-shipping" type="number" step="0.01" min="0" value="0" />
+
+        <div class="btn-row">
+          <button class="btn" id="confirm-btn">Save purchase</button>
+        </div>
+        <p class="field-error" id="confirm-error" style="display:none"></p>
+      </div>
+    </section>
+
+  </div>
+
+  <script type="module" src="assets/js/purchases.js"></script>
+</body>
+</html>

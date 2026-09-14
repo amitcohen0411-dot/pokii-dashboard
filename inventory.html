@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inventory — Pokii Dashboard</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="container">
+
+    <section id="list-view">
+      <h1 style="margin:20px 0 8px">Inventory</h1>
+      <div class="card">
+        <label for="search-box">Search</label>
+        <input id="search-box" placeholder="Search by name…" />
+        <label for="category-filter">Category</label>
+        <select id="category-filter">
+          <option value="">All</option>
+          <option value="funko">Funko</option>
+          <option value="pokemon_card">Pokémon card</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="card" id="inventory-list">
+        <p class="spinner-text">Loading…</p>
+      </div>
+    </section>
+
+    <section id="detail-view" style="display:none">
+      <button class="btn secondary" id="back-btn">← Back</button>
+      <div class="card" id="detail-body"></div>
+    </section>
+
+  </div>
+
+  <script type="module" src="assets/js/inventory.js"></script>
+</body>
+</html>

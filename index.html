@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pokii Dashboard — Sign in</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="container login-wrap">
+    <div class="card login-card">
+      <h1>Pokii Dashboard</h1>
+      <p class="hint">Enter the shared passcode</p>
+      <form id="login-form">
+        <label for="passcode">Passcode</label>
+        <input type="password" id="passcode" inputmode="numeric" autocomplete="current-password" required autofocus />
+        <div class="field-error" id="login-error" style="display:none"></div>
+        <div class="btn-row" style="justify-content:center">
+          <button type="submit" class="btn" id="login-btn">Sign in</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { login } from "./assets/js/auth.js";
+    import { supabase } from "./assets/js/supabaseClient.js";
+
+    // If already signed in, skip straight to the dashboard.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) window.location.href = "dashboard.html";
+    });
+
+    const form = document.getElementById("login-form");
+    const errorEl = document.getElementById("login-error");
+    const btn = document.getElementById("login-btn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.style.display = "none";
+      btn.disabled = true;
+      btn.textContent = "Checking…";
+      try {
+        await login(document.getElementById("passcode").value);
+        window.location.href = "dashboard.html";
+      } catch (err) {
+        errorEl.textContent = "Wrong passcode — try again.";
+        errorEl.style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "Sign in";
+      }
+    });
+  </script>
+</body>
+</html>

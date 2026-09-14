@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — Pokii Dashboard</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1 style="margin-top:20px">This month</h1>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="stat-label">Bit balance</div>
+        <div class="stat-value" id="bal-bit">—</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Cash balance</div>
+        <div class="stat-value" id="bal-cash">—</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Card balance</div>
+        <div class="stat-value" id="bal-card">—</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Inventory value</div>
+        <div class="stat-value" id="inv-value">—</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">In transit</div>
+        <div class="stat-value" id="in-transit">—</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Spend this month</div>
+        <div class="stat-value negative" id="month-spend">—</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Revenue this month</div>
+        <div class="stat-value positive" id="month-revenue">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="stat-label">Profit this month (revenue − cost of goods sold)</div>
+      <div class="stat-value" id="month-profit">—</div>
+    </div>
+
+    <div class="btn-row">
+      <a class="btn" href="purchases.html#new">+ New purchase</a>
+      <a class="btn secondary" href="sales.html#new">+ New sale</a>
+      <a class="btn secondary" href="orders.html">📮 Orders</a>
+    </div>
+
+    <div class="card" id="market-alerts-card" style="display:none">
+      <h3 style="margin-top:0">Deals &amp; drops</h3>
+      <p class="hint">Coupons, discounts, and new-product news spotted for Pokémon cards / Funko.</p>
+      <div id="market-alerts-list"></div>
+    </div>
+
+    <div class="card" id="unpaid-shipments-card" style="display:none">
+      <h3 style="margin-top:0">Forwarder payment due</h3>
+      <p class="hint">Don't forget — these are just sitting until you pay for the last leg.</p>
+      <div id="unpaid-shipments-list"></div>
+      <a class="btn secondary" href="orders.html" style="margin-top:8px">Go to orders</a>
+    </div>
+
+    <div class="card" id="overdue-shipments-card" style="display:none">
+      <h3 style="margin-top:0">Running late</h3>
+      <p class="hint">Past their expected arrival date and not marked received yet.</p>
+      <div id="overdue-shipments-list"></div>
+      <a class="btn secondary" href="orders.html" style="margin-top:8px">Go to orders</a>
+    </div>
+
+    <div class="card" id="stuck-orders-card" style="display:none">
+      <h3 style="margin-top:0">Needs a status update</h3>
+      <p class="hint">Ordered or shipped over two weeks ago — mark it Received or Cancelled once you know.</p>
+      <div id="stuck-orders-list"></div>
+      <a class="btn secondary" href="purchases.html" style="margin-top:8px">Go to purchases</a>
+    </div>
+
+    <div class="card" id="slow-movers-card" style="display:none">
+      <h3 style="margin-top:0">Sitting the longest</h3>
+      <p class="hint">In stock 21+ days without moving — candidates to discount or bundle.</p>
+      <div id="slow-movers-list"></div>
+      <a class="btn secondary" href="inventory.html" style="margin-top:8px">Go to inventory</a>
+    </div>
+
+    <p class="hint spinner-text" id="load-error" style="display:none"></p>
+  </div>
+
+  <script type="module" src="assets/js/dashboard.js"></script>
+</body>
+</html>
