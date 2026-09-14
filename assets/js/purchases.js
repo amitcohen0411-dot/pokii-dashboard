@@ -644,7 +644,7 @@ async function onConfirm() {
           await setInventoryImage(inventoryItemId, currentMediaPath);
         }
       }
-      await addStock(inventoryItemId, l.quantity, unitCost);
+      await addStock(inventoryItemId, l.quantity, unitCost, e.effectiveUnitPrice);
 
       await supabase.from("purchase_line_items").insert({
         purchase_id: purchase.id,

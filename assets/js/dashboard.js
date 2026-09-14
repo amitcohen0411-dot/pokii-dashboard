@@ -2,6 +2,15 @@ import { supabase } from "./supabaseClient.js";
 import { requireSession } from "./auth.js";
 import { renderNav } from "./nav.js";
 import { money, shortDate, escapeHtml } from "./format.js";
+import { getDefaultValueMultiplier } from "./inventoryMatch.js";
+
+// Mirrors inventory.js: inventory "value" is the estimated resale value, not
+// the cost basis — estimated_value when told, else the default multiplier
+// against the item-only cost (never against avg_unit_cost, which is real
+// cost basis used for profit math elsewhere and must stay untouched).
+function estimatedValueFor(item, multiplier) {
+  return item.estimated_value != null ? Number(item.estimated_value) : Number(item.avg_item_cost) * multiplier;
+}
 
 const STUCK_ORDER_DAYS = 14;
 const SLOW_MOVER_DAYS = 21;
@@ -42,9 +51,12 @@ async function loadBalances() {
 }
 
 async function loadInventoryValue() {
-  const { data, error } = await supabase.from("inventory_items").select("quantity, avg_unit_cost");
+  const [{ data, error }, multiplier] = await Promise.all([
+    supabase.from("inventory_items").select("quantity, avg_item_cost, estimated_value"),
+    getDefaultValueMultiplier(),
+  ]);
   if (error) throw error;
-  const total = data.reduce((sum, row) => sum + row.quantity * Number(row.avg_unit_cost), 0);
+  const total = data.reduce((sum, row) => sum + row.quantity * estimatedValueFor(row, multiplier), 0);
   document.getElementById("inv-value").textContent = money(total);
 }
 
@@ -136,13 +148,16 @@ async function loadStuckOrders() {
 
 async function loadSlowMovers() {
   const cutoff = new Date(Date.now() - SLOW_MOVER_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
-    .from("inventory_items")
-    .select("id, name, quantity, avg_unit_cost, updated_at")
-    .gt("quantity", 0)
-    .lte("updated_at", cutoff)
-    .order("updated_at")
-    .limit(5);
+  const [{ data, error }, multiplier] = await Promise.all([
+    supabase
+      .from("inventory_items")
+      .select("id, name, quantity, avg_item_cost, estimated_value, updated_at")
+      .gt("quantity", 0)
+      .lte("updated_at", cutoff)
+      .order("updated_at")
+      .limit(5),
+    getDefaultValueMultiplier(),
+  ]);
   if (error) throw error;
   if (!data.length) return;
 
@@ -154,7 +169,7 @@ async function loadSlowMovers() {
           <div class="title">${escapeHtml(item.name)}</div>
           <div class="meta">${daysAgo(item.updated_at)}d in stock · ${item.quantity} units</div>
         </div>
-        <div class="title">${money(item.quantity * item.avg_unit_cost)}</div>
+        <div class="title">${money(item.quantity * estimatedValueFor(item, multiplier))}</div>
       </div>`,
     )
     .join("");

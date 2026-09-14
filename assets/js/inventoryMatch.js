@@ -30,20 +30,55 @@ export async function getInventoryItem(id) {
   return data;
 }
 
-// Adds `quantity` units at `unitCost` each to an inventory item, recalculating
-// its quantity-weighted average cost.
-export async function addStock(itemId, quantity, unitCost) {
+// Adds `quantity` units to an inventory item, recalculating its
+// quantity-weighted average cost. `unitCost` is the full landed cost (item +
+// its shipping share) — this is the real cost basis used for profit/COGS
+// math and must stay accurate to what was actually paid. `itemOnlyPrice` is
+// the same unit's price before shipping — kept separately purely as the base
+// for the default resale-value estimate (see estimated_value on this table),
+// which is a different question from cost basis and must never be confused
+// with it.
+export async function addStock(itemId, quantity, unitCost, itemOnlyPrice = unitCost) {
   const item = await getInventoryItem(itemId);
   const newQuantity = item.quantity + quantity;
   const newAvgCost =
     newQuantity > 0
       ? (item.quantity * Number(item.avg_unit_cost) + quantity * unitCost) / newQuantity
       : 0;
+  const newAvgItemCost =
+    newQuantity > 0
+      ? (item.quantity * Number(item.avg_item_cost) + quantity * itemOnlyPrice) / newQuantity
+      : 0;
   const { error } = await supabase
     .from("inventory_items")
-    .update({ quantity: newQuantity, avg_unit_cost: newAvgCost, updated_at: new Date().toISOString() })
+    .update({
+      quantity: newQuantity,
+      avg_unit_cost: newAvgCost,
+      avg_item_cost: newAvgItemCost,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", itemId);
   if (error) throw error;
+}
+
+export async function setEstimatedValue(itemId, value) {
+  const { error } = await supabase
+    .from("inventory_items")
+    .update({ estimated_value: value, updated_at: new Date().toISOString() })
+    .eq("id", itemId);
+  if (error) throw error;
+}
+
+let cachedMultiplier = null;
+export async function getDefaultValueMultiplier() {
+  if (cachedMultiplier !== null) return cachedMultiplier;
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "default_value_multiplier")
+    .single();
+  cachedMultiplier = error || !data ? 1.9 : Number(data.value) || 1.9;
+  return cachedMultiplier;
 }
 
 // Removes `quantity` units from an inventory item (used by sales / purchase

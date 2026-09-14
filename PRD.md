@@ -507,6 +507,17 @@ Since Vinted has no API, the user asked to use the *emails* Vinted already sends
 - **Explicitly declined**: auto-subscribing the user's email to marketing newsletters on unnamed third-party sites. No specific site was ever named, and submitting personal data into web forms needs explicit per-site permission regardless — this was surfaced back to the user rather than guessed at.
 - **Known gap**: a second Gmail inbox the user also buys from is not yet connected in this environment; the sync currently only reads `amitcohen0411@gmail.com`. Once a second Gmail connector is added, the scheduled task's prompt needs updating (via `update_scheduled_task`) to check it too.
 
+### v1.4 — estimated resale value, separated from cost basis
+
+The dashboard's "inventory value" was showing cost basis (what was paid) — for a resale business, that understates real inventory value, since the whole point is reselling above cost. Rather than repurpose `avg_unit_cost` (which must stay accurate to actual spend for profit/COGS math on future sales), inventory got a second, independent number for this:
+
+- **`inventory_items.avg_item_cost`**: weighted-average item price only, excluding shipping/fees — maintained alongside `avg_unit_cost` in `addStock()`, fed by a new 4th argument (`itemOnlyPrice`) that `purchases.js` already had on hand (`effective[i].effectiveUnitPrice`) but wasn't passing through. Purely the base for a default value estimate; never used for cost/profit math.
+- **`inventory_items.estimated_value`**: nullable manual override — set it when you actually know what something's worth; leave it null to auto-estimate.
+- **`app_settings.default_value_multiplier`** (default `1.9`): when `estimated_value` is null, the estimate is `avg_item_cost × multiplier`.
+- Dashboard "Inventory value" and the "Sitting the longest" card, and the inventory list/detail pages, all switched from `avg_unit_cost` to this estimate. The inventory detail page shows both numbers side by side, explicitly labeled ("Cost basis... never changes here" vs. "Estimated resale value... you tell us the real number here whenever you know it"), with an "AI"-style badge marking which ones are still auto-estimated vs. manually confirmed — same visual language as the AI/you/edited badges used everywhere else in the app.
+- Backfilled `avg_item_cost` for the 5 already-imported Vinted items from their existing `purchase_line_items.unit_price × fx_rate`, and updated the scheduled Vinted-sync task's prompt to set both cost fields correctly (and do a proper weighted-average update, not an overwrite, if syncing a repeat item) on every future run.
+- Deleting a purchase (removes stock + refunds its transaction) already existed from v1.0 — confirmed unaffected by this change.
+
 ---
 
 *End of PRD. If anything in this document conflicts with itself, the section closer to the top wins.*
