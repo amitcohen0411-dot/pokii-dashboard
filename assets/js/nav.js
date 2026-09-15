@@ -6,6 +6,7 @@ const TABS = [
   { href: "orders.html", label: "Orders", icon: "📮" },
   { href: "inventory.html", label: "Inventory", icon: "📦" },
   { href: "sales.html", label: "Sales", icon: "💸" },
+  { href: "vinted-activity.html", label: "Activity", icon: "💬" },
 ];
 
 export function renderNav(activeHref) {

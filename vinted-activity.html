@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vinted Activity — Pokii Dashboard</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1 style="margin:20px 0 8px">Vinted activity</h1>
+    <p class="hint">Offers and messages picked up from Vinted's notification emails — synced daily, read-only (there's no Vinted API to reply or accept an offer from here; open Vinted itself for that).</p>
+
+    <div class="card">
+      <label for="kind-filter">Show</label>
+      <select id="kind-filter">
+        <option value="">Everything</option>
+        <option value="offer_received">Offers from sellers</option>
+        <option value="offer_accepted">Offers accepted</option>
+        <option value="offer_rejected">Offers declined</option>
+        <option value="message">Messages</option>
+      </select>
+    </div>
+
+    <div class="card" id="activity-list">
+      <p class="spinner-text">Loading…</p>
+    </div>
+  </div>
+
+  <script type="module" src="assets/js/vinted-activity.js"></script>
+</body>
+</html>

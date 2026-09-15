@@ -59,7 +59,9 @@ async function loadOrders() {
 
   const { data, error } = await supabase
     .from("purchases")
-    .select("id, source, order_date, total_amount, forwarder, tracking_number, status, forwarder_shipments(*)")
+    .select(
+      "id, source, order_date, total_amount, forwarder, tracking_number, status, forwarder_shipments(*), purchase_line_items(name_raw)",
+    )
     .neq("status", "cancelled")
     .order("order_date", { ascending: false });
 
@@ -80,11 +82,13 @@ async function loadOrders() {
   container.innerHTML = rows
     .map((p) => {
       const tracking = p.forwarder_shipments?.tracking_number || p.tracking_number;
+      const contents = (p.purchase_line_items || []).map((l) => l.name_raw).join(", ");
       return `
       <div class="list-row" style="cursor:pointer" data-id="${p.id}">
         <div>
           <div class="title">${escapeHtml(p.source || "Purchase")}</div>
           <div class="meta">${shortDate(p.order_date)}${p.forwarder ? ` · via ${FORWARDER_LABEL[p.forwarder]}` : ""}${tracking ? ` · ${escapeHtml(tracking)}` : ""}</div>
+          ${contents ? `<div class="meta">${escapeHtml(contents)}</div>` : ""}
         </div>
         <div style="text-align:right">
           <div class="title">${money(p.total_amount)}</div>
@@ -124,7 +128,7 @@ async function loadNewShipmentPurchaseList() {
 
   const { data, error } = await supabase
     .from("purchases")
-    .select("id, source, total_amount, order_date")
+    .select("id, source, total_amount, order_date, purchase_line_items(name_raw)")
     .eq("forwarder", forwarder)
     .eq("status", "received")
     .is("forwarder_shipment_id", null)
@@ -139,13 +143,14 @@ async function loadNewShipmentPurchaseList() {
     return;
   }
   listEl.innerHTML = data
-    .map(
-      (p) => `
+    .map((p) => {
+      const contents = (p.purchase_line_items || []).map((l) => l.name_raw).join(", ");
+      return `
       <label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px;color:var(--text)">
         <input type="checkbox" class="ns-pick" value="${p.id}" />
-        ${escapeHtml(p.source || "Purchase")} — ${money(p.total_amount)} (${shortDate(p.order_date)})
-      </label>`,
-    )
+        ${escapeHtml(p.source || "Purchase")}${contents ? ` (${escapeHtml(contents)})` : ""} — ${money(p.total_amount)} (${shortDate(p.order_date)})
+      </label>`;
+    })
     .join("");
 }
 
@@ -211,7 +216,7 @@ async function loadShipments() {
     shipments.map(async (s) => {
       const { data: purchases } = await supabase
         .from("purchases")
-        .select("id, source, total_amount")
+        .select("id, source, total_amount, purchase_line_items(name_raw)")
         .eq("forwarder_shipment_id", s.id);
       return { ...s, purchases: purchases || [] };
     }),
@@ -250,12 +255,16 @@ function shipmentCardHtml(s) {
       <div class="stat-label" style="margin-top:14px">Purchases in this shipment</div>
       ${
         s.purchases
-          .map(
-            (p) => `<div class="list-row">
-              <div class="title">${escapeHtml(p.source || "Purchase")}</div>
+          .map((p) => {
+            const contents = (p.purchase_line_items || []).map((l) => l.name_raw).join(", ");
+            return `<div class="list-row">
+              <div>
+                <div class="title">${escapeHtml(p.source || "Purchase")}</div>
+                ${contents ? `<div class="meta">${escapeHtml(contents)}</div>` : ""}
+              </div>
               <div>${money(p.total_amount)} <button type="button" class="remove-btn sh-unassign" data-pid="${p.id}">remove</button></div>
-            </div>`,
-          )
+            </div>`;
+          })
           .join("") || `<p class="hint">None assigned.</p>`
       }
       <p class="field-error sh-error" style="display:none"></p>
