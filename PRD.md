@@ -544,6 +544,16 @@ The platform only supports one Gmail connector at a time, so a second inbox (the
 - **Dashboard urgent-alerts banner** (from the prior session): confirmed working end-to-end after diagnosing what first looked like a bug but was actually the test browser's stale 10-minute JS cache serving mismatched file versions — not a real defect once verified with a forced cache bypass.
 - **Scheduled task renamed/restructured** to four jobs (Vinted receipts, Redbox tracking, Vinted activity, deals scan) and now explicitly documents that both accounts' mail arrives in one inbox via the forwarding rule, so it processes everything it finds rather than assuming a single user.
 
+### v1.8 — expected-arrival dates for direct-shipped orders
+
+Direct (non-forwarder) purchases had no "when is this coming" field — only forwarder-routed shipments did (`forwarder_shipments.expected_arrival_date`). Investigated DHL "On Demand Delivery" notification emails as a possible source (the user's third Vinted account gets these for direct-to-door shipments) but they only carry a Waybill number and generic status, never the item name, so a DHL email can't be matched back to a specific purchase. Vinted's own `"Order update for {item}: your order is on its way! Estimated delivery is {start} - {end}"` emails turned out to be the right source instead — they name the item directly.
+
+- **`purchases.expected_arrival_date`** (date, nullable): set from that Vinted email's end date when a direct purchase isn't yet `received`. Shown on the Orders list and the purchase detail page ("expected by ...") whenever present and the purchase isn't already received.
+- Scheduled task's Job 1 updated to capture this for every new purchase going forward, and explicitly documents *why* DHL correlation was skipped rather than silently not doing it.
+- Backfilled the 1 of 2 still-`ordered` purchases that had a matching "on its way" email (Pokemon Houndoom Undaunted 82/90 → 11/09); the other (a very recent purchase) has no such email yet since the seller hasn't shipped.
+
+- **Third Vinted account imported** (`yuvicohen2@gmail.com` / `yuvalc5`, vinted.co.uk): 73 receipts found, 19 cancelled/refunded (excluded), 54 imported (≈₪27,283.57, 79 inventory items) — run as a background agent given the volume, verified against the DB afterward (purchase count, transaction 1:1 match, and total matched the agent's own report exactly). No Redbox, MyUS, eBay (marketing only), PayPal, or other-marketplace activity found on this account worth importing.
+
 ---
 
 *End of PRD. If anything in this document conflicts with itself, the section closer to the top wins.*

@@ -60,7 +60,7 @@ async function loadOrders() {
   const { data, error } = await supabase
     .from("purchases")
     .select(
-      "id, source, order_date, total_amount, forwarder, tracking_number, status, forwarder_shipments(*), purchase_line_items(name_raw)",
+      "id, source, order_date, total_amount, forwarder, tracking_number, status, expected_arrival_date, forwarder_shipments(*), purchase_line_items(name_raw)",
     )
     .neq("status", "cancelled")
     .order("order_date", { ascending: false });
@@ -83,12 +83,14 @@ async function loadOrders() {
     .map((p) => {
       const tracking = p.forwarder_shipments?.tracking_number || p.tracking_number;
       const contents = (p.purchase_line_items || []).map((l) => l.name_raw).join(", ");
+      const expected = p.forwarder_shipments?.expected_arrival_date || (!p.forwarder ? p.expected_arrival_date : null);
       return `
       <div class="list-row" style="cursor:pointer" data-id="${p.id}">
         <div>
           <div class="title">${escapeHtml(p.source || "Purchase")}</div>
           <div class="meta">${shortDate(p.order_date)}${p.forwarder ? ` · via ${FORWARDER_LABEL[p.forwarder]}` : ""}${tracking ? ` · ${escapeHtml(tracking)}` : ""}</div>
           ${contents ? `<div class="meta">${escapeHtml(contents)}</div>` : ""}
+          ${expected && p.state !== "received" ? `<div class="meta">Expected by ${shortDate(expected)}</div>` : ""}
         </div>
         <div style="text-align:right">
           <div class="title">${money(p.total_amount)}</div>
