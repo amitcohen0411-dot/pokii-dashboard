@@ -101,6 +101,7 @@ function showForm() {
   currentMediaPath = null;
   currentMediaType = null;
   $("p-source").value = "";
+  $("p-sourceurl").value = "";
   $("p-hint").value = "";
   $("p-media").value = "";
   $("p-shipping").value = "0";
@@ -121,7 +122,7 @@ function showForm() {
 async function loadList() {
   const { data, error } = await supabase
     .from("purchases")
-    .select("id, source, status, order_date, total_amount, payment_account, currency, fx_rate, forwarder")
+    .select("id, source, source_url, status, order_date, total_amount, payment_account, currency, fx_rate, forwarder")
     .order("order_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -139,7 +140,7 @@ async function loadList() {
       (p) => `
       <div class="list-row" style="cursor:pointer" data-id="${p.id}">
         <div>
-          <div class="title">${escapeHtml(p.source || "Purchase")}</div>
+          <div class="title">${escapeHtml(p.source || "Purchase")}${p.source_url ? ` <a href="${escapeHtml(p.source_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:0.85em">↗</a>` : ""}</div>
           <div class="meta">${shortDate(p.order_date)} · ${escapeHtml(p.payment_account)}${p.forwarder ? ` · via ${FORWARDER_LABEL[p.forwarder]}` : ""}</div>
         </div>
         <div style="text-align:right">
@@ -214,6 +215,7 @@ async function openDetail(id) {
 
   body.innerHTML = `
     <h2>${escapeHtml(purchase.source || "Purchase")} ${statusPill(purchase.status)}</h2>
+    ${purchase.source_url ? `<p><a href="${escapeHtml(purchase.source_url)}" target="_blank" rel="noopener">View original order/listing ↗</a></p>` : ""}
     <p class="meta">${shortDate(purchase.order_date)} · paid from ${escapeHtml(purchase.payment_account)}${purchase.tracking_number ? ` · tracking ${escapeHtml(purchase.tracking_number)}` : ""}</p>
     ${mediaHtml}
     ${shipmentHtml}
@@ -312,6 +314,7 @@ function openEditPurchase(purchase, lines) {
   $("form-view").style.display = "block";
 
   $("p-source").value = purchase.source || "";
+  $("p-sourceurl").value = purchase.source_url || "";
   $("p-date").value = purchase.order_date;
   $("p-account").value = purchase.payment_account;
   $("p-status").value = purchase.status === "cancelled" ? "ordered" : purchase.status;
@@ -577,6 +580,7 @@ async function onConfirm() {
 
     const purchasePayload = {
       source: $("p-source").value || null,
+      source_url: $("p-sourceurl").value.trim() || null,
       status: $("p-status").value,
       order_date: $("p-date").value,
       items_subtotal: itemsSubtotal,

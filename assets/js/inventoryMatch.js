@@ -24,6 +24,31 @@ export async function createInventoryItem({ name, category }) {
   return data;
 }
 
+// Creates a new inventory item directly with known quantity/cost, bypassing
+// the purchase flow entirely — for stock you're entering by hand (e.g. a
+// haul that was never logged as a purchase). Deliberately posts no
+// transaction: this only records stock you already own, it doesn't spend
+// money, so it must never touch account balances. itemOnlyPrice isn't known
+// separately here (no shipping breakdown to split out), so avg_item_cost
+// is set equal to avg_unit_cost — the default resale-value estimate will
+// simply be based on the full per-unit cost you entered.
+export async function createManualInventoryItem({ name, category, quantity, unitCost, estimatedValue }) {
+  const { data, error } = await supabase
+    .from("inventory_items")
+    .insert({
+      name,
+      category,
+      quantity,
+      avg_unit_cost: unitCost,
+      avg_item_cost: unitCost,
+      estimated_value: estimatedValue ?? null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function getInventoryItem(id) {
   const { data, error } = await supabase.from("inventory_items").select("*").eq("id", id).single();
   if (error) throw error;

@@ -10,7 +10,10 @@
   <div class="container">
 
     <section id="list-view">
-      <h1 style="margin:20px 0 8px">Inventory</h1>
+      <div class="btn-row" style="justify-content:space-between; align-items:center;">
+        <h1 style="margin:20px 0 0">Inventory</h1>
+        <button class="btn" id="show-add-btn">+ Add item</button>
+      </div>
       <div class="card">
         <label for="search-box">Search</label>
         <input id="search-box" placeholder="Search by name…" />
@@ -30,6 +33,34 @@
     <section id="detail-view" style="display:none">
       <button class="btn secondary" id="back-btn">← Back</button>
       <div class="card" id="detail-body"></div>
+    </section>
+
+    <section id="add-view" style="display:none">
+      <button class="btn secondary" id="back-from-add-btn">← Back</button>
+      <h1>Add inventory item</h1>
+      <p class="hint">For stock you're entering directly — not tied to a logged purchase or sale (e.g. scanning an existing haul photo). This does not touch your cash balances.</p>
+      <div class="card">
+        <label for="a-name">Name</label>
+        <input id="a-name" placeholder="Item name" />
+        <label for="a-category">Category</label>
+        <select id="a-category">
+          <option value="funko">Funko</option>
+          <option value="pokemon_card">Pokémon card</option>
+          <option value="other">Other</option>
+        </select>
+        <label for="a-quantity">Quantity</label>
+        <input id="a-quantity" type="number" min="1" step="1" value="1" />
+        <label for="a-cost">Cost per unit (what you paid, ₪)</label>
+        <input id="a-cost" type="number" min="0" step="0.01" placeholder="0.00" />
+        <label for="a-value">Estimated resale value per unit (₪, optional)</label>
+        <input id="a-value" type="number" min="0" step="0.01" placeholder="leave blank to auto-estimate" />
+        <label for="a-photo">Photo (optional)</label>
+        <input id="a-photo" type="file" accept="image/*" />
+        <div class="btn-row">
+          <button class="btn" id="save-add-btn">Add to inventory</button>
+        </div>
+        <p class="field-error" id="add-error" style="display:none"></p>
+      </div>
     </section>
 
   </div>

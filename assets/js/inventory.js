@@ -3,7 +3,7 @@ import { requireSession } from "./auth.js";
 import { renderNav } from "./nav.js";
 import { money, escapeHtml } from "./format.js";
 import { getMediaSignedUrl, uploadMedia } from "./media.js";
-import { setInventoryImage, setEstimatedValue, getDefaultValueMultiplier } from "./inventoryMatch.js";
+import { setInventoryImage, setEstimatedValue, getDefaultValueMultiplier, createManualInventoryItem } from "./inventoryMatch.js";
 
 const $ = (id) => document.getElementById(id);
 const CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon card", other: "Other" };
@@ -24,8 +24,66 @@ async function main() {
   $("search-box").addEventListener("input", debounce(loadList, 250));
   $("category-filter").addEventListener("change", loadList);
   $("back-btn").addEventListener("click", showList);
+  $("show-add-btn").addEventListener("click", showAddForm);
+  $("back-from-add-btn").addEventListener("click", showList);
+  $("save-add-btn").addEventListener("click", saveManualItem);
 
   await loadList();
+}
+
+function showAddForm() {
+  $("list-view").style.display = "none";
+  $("detail-view").style.display = "none";
+  $("add-view").style.display = "block";
+  $("a-name").value = "";
+  $("a-category").value = "funko";
+  $("a-quantity").value = "1";
+  $("a-cost").value = "";
+  $("a-value").value = "";
+  $("a-photo").value = "";
+  $("add-error").style.display = "none";
+}
+
+async function saveManualItem() {
+  const errorEl = $("add-error");
+  errorEl.style.display = "none";
+  const name = $("a-name").value.trim();
+  const quantity = Number($("a-quantity").value) || 0;
+  const cost = $("a-cost").value === "" ? null : Number($("a-cost").value);
+  const value = $("a-value").value === "" ? null : Number($("a-value").value);
+  if (!name) {
+    errorEl.textContent = "Enter a name.";
+    errorEl.style.display = "block";
+    return;
+  }
+  if (quantity < 1) {
+    errorEl.textContent = "Quantity must be at least 1.";
+    errorEl.style.display = "block";
+    return;
+  }
+  if (cost === null) {
+    errorEl.textContent = "Enter what you paid per unit — required so profit can be calculated correctly whenever this sells.";
+    errorEl.style.display = "block";
+    return;
+  }
+  try {
+    const item = await createManualInventoryItem({
+      name,
+      category: $("a-category").value,
+      quantity,
+      unitCost: cost,
+      estimatedValue: value,
+    });
+    const file = $("a-photo").files[0];
+    if (file) {
+      const path = await uploadMedia(file, "item");
+      await setInventoryImage(item.id, path);
+    }
+    showList();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = "block";
+  }
 }
 
 function debounce(fn, ms) {
@@ -39,6 +97,7 @@ function debounce(fn, ms) {
 function showList() {
   $("list-view").style.display = "block";
   $("detail-view").style.display = "none";
+  $("add-view").style.display = "none";
   loadList();
 }
 
