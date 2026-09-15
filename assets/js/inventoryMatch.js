@@ -94,6 +94,14 @@ export async function setEstimatedValue(itemId, value) {
   if (error) throw error;
 }
 
+// Shared with inventory.js/dashboard.js/sales.js: estimated_value is the
+// source of truth when set by hand, otherwise fall back to the default
+// multiplier against the item-only cost (never avg_unit_cost — that's the
+// real cost basis used for profit math and must stay untouched).
+export function estimatedValueFor(item, multiplier) {
+  return item.estimated_value != null ? Number(item.estimated_value) : Number(item.avg_item_cost) * multiplier;
+}
+
 let cachedMultiplier = null;
 export async function getDefaultValueMultiplier() {
   if (cachedMultiplier !== null) return cachedMultiplier;

@@ -120,6 +120,18 @@ a { color: var(--accent); }
 }
 .card h2, .card h3 { margin-top: 0; }
 
+.urgent-banner {
+  background: var(--danger);
+  color: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.urgent-banner .title { font-weight: 700; font-size: 17px; }
+.urgent-banner .meta { color: #fff; opacity: 0.9; }
+.urgent-banner a { color: #fff; text-decoration: underline; }
+.urgent-banner .btn.secondary { background: rgba(255,255,255,0.16); color: #fff; border-color: rgba(255,255,255,0.5); }
+
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;

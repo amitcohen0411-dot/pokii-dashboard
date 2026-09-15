@@ -3,7 +3,7 @@ import { requireSession } from "./auth.js";
 import { renderNav } from "./nav.js";
 import { money, shortDate, sourceBadge, escapeHtml } from "./format.js";
 import { uploadMedia, mediaTypeFromFile, analyzeMedia, getMediaSignedUrl, MAX_MEDIA_BYTES } from "./media.js";
-import { searchInventory, getInventoryItem, removeStock } from "./inventoryMatch.js";
+import { searchInventory, getInventoryItem, removeStock, estimatedValueFor, getDefaultValueMultiplier } from "./inventoryMatch.js";
 
 let draftLines = [];
 let selectedFile = null;
@@ -21,7 +21,45 @@ async function main() {
   renderNav("sales.html");
   wireStaticHandlers();
   await loadList();
-  if (window.location.hash === "#new") showForm();
+  const params = new URLSearchParams(window.location.search);
+  const presetItemId = params.get("item");
+  if (presetItemId) {
+    await showFormForItem(presetItemId);
+  } else if (window.location.hash === "#new") {
+    showForm();
+  }
+}
+
+// Entry point from inventory.html's "Sell" link (?item=<id>) — skips the
+// photo/AI step entirely since we already know exactly which item this is;
+// goes straight to a manual draft line pre-matched to that item.
+async function showFormForItem(itemId) {
+  showForm();
+  $("media-card").style.display = "none";
+  let item;
+  try {
+    item = await getInventoryItem(itemId);
+  } catch (err) {
+    $("draft-card").style.display = "block";
+    $("confirm-error").textContent = "Couldn't load that inventory item: " + err.message;
+    $("confirm-error").style.display = "block";
+    return;
+  }
+  const multiplier = await getDefaultValueMultiplier();
+  draftLines = [
+    {
+      id: crypto.randomUUID(),
+      name: item.name,
+      category: item.category,
+      quantity: 1,
+      unit_price: Number(estimatedValueFor(item, multiplier).toFixed(2)),
+      confidence: null,
+      source: "human",
+      matchItemId: item.id,
+    },
+  ];
+  renderDraftLines();
+  $("draft-card").style.display = "block";
 }
 
 function wireStaticHandlers() {

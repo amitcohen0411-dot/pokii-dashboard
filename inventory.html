@@ -17,13 +17,28 @@
       <div class="card">
         <label for="search-box">Search</label>
         <input id="search-box" placeholder="Search by name…" />
-        <label for="category-filter">Category</label>
-        <select id="category-filter">
-          <option value="">All</option>
-          <option value="funko">Funko</option>
-          <option value="pokemon_card">Pokémon card</option>
-          <option value="other">Other</option>
-        </select>
+        <div class="row" style="display:flex; gap:8px;">
+          <div style="flex:1">
+            <label for="category-filter">Type</label>
+            <select id="category-filter">
+              <option value="">All</option>
+              <option value="funko">Funko</option>
+              <option value="pokemon_card">Pokémon card</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div style="flex:1">
+            <label for="sort-select">Sort by</label>
+            <select id="sort-select">
+              <option value="name">Name (A–Z)</option>
+              <option value="value_desc">Value: high to low</option>
+              <option value="value_asc">Value: low to high</option>
+              <option value="cost_desc">Cost: high to low</option>
+              <option value="qty_desc">Quantity: most in stock</option>
+              <option value="oldest">Oldest in stock first</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="card" id="inventory-list">
         <p class="spinner-text">Loading…</p>

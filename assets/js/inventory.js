@@ -3,18 +3,16 @@ import { requireSession } from "./auth.js";
 import { renderNav } from "./nav.js";
 import { money, escapeHtml } from "./format.js";
 import { getMediaSignedUrl, uploadMedia } from "./media.js";
-import { setInventoryImage, setEstimatedValue, getDefaultValueMultiplier, createManualInventoryItem } from "./inventoryMatch.js";
+import {
+  setInventoryImage,
+  setEstimatedValue,
+  getDefaultValueMultiplier,
+  createManualInventoryItem,
+  estimatedValueFor,
+} from "./inventoryMatch.js";
 
 const $ = (id) => document.getElementById(id);
 const CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon card", other: "Other" };
-
-// estimated_value is the source of truth when you've told us what something's
-// actually worth; otherwise we guess using the default multiplier against
-// the item-only cost (no shipping/fees) — never against avg_unit_cost, since
-// that's the real cost basis used for profit math and must stay untouched.
-function estimatedValueFor(item, multiplier) {
-  return item.estimated_value != null ? Number(item.estimated_value) : Number(item.avg_item_cost) * multiplier;
-}
 
 async function main() {
   const session = await requireSession();
@@ -23,6 +21,7 @@ async function main() {
 
   $("search-box").addEventListener("input", debounce(loadList, 250));
   $("category-filter").addEventListener("change", loadList);
+  $("sort-select").addEventListener("change", loadList);
   $("back-btn").addEventListener("click", showList);
   $("show-add-btn").addEventListener("click", showAddForm);
   $("back-from-add-btn").addEventListener("click", showList);
@@ -106,11 +105,21 @@ function daysAgo(dateStr) {
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
 }
 
+const SORTERS = {
+  name: (a, b) => a.name.localeCompare(b.name),
+  value_desc: (a, b, m) => estimatedValueFor(b, m) - estimatedValueFor(a, m),
+  value_asc: (a, b, m) => estimatedValueFor(a, m) - estimatedValueFor(b, m),
+  cost_desc: (a, b) => Number(b.avg_unit_cost) - Number(a.avg_unit_cost),
+  qty_desc: (a, b) => b.quantity - a.quantity,
+  oldest: (a, b) => new Date(a.updated_at) - new Date(b.updated_at),
+};
+
 async function loadList() {
   const search = $("search-box").value.trim();
   const category = $("category-filter").value;
+  const sort = $("sort-select").value;
 
-  let q = supabase.from("inventory_items").select("*").order("name");
+  let q = supabase.from("inventory_items").select("*");
   if (search) q = q.ilike("name", `%${search}%`);
   if (category) q = q.eq("category", category);
   const [{ data, error }, multiplier] = await Promise.all([q, getDefaultValueMultiplier()]);
@@ -124,6 +133,7 @@ async function loadList() {
     container.innerHTML = `<div class="empty-state">No inventory yet — it fills up as you log purchases.</div>`;
     return;
   }
+  data.sort((a, b) => SORTERS[sort](a, b, multiplier));
 
   const thumbUrls = await Promise.all(
     data.map((item) => (item.image_url ? getMediaSignedUrl(item.image_url).catch(() => null) : Promise.resolve(null))),
@@ -149,6 +159,7 @@ async function loadList() {
         <div style="text-align:right">
           <div class="title">${money(item.quantity * value)}${valueTag}</div>
           <div class="meta">cost ${money(item.avg_unit_cost)}</div>
+          ${item.quantity > 0 ? `<a class="btn secondary" style="padding:4px 10px;font-size:13px;margin-top:4px" href="sales.html?item=${item.id}" onclick="event.stopPropagation()">Sell</a>` : ""}
         </div>
       </div>`;
     })
@@ -206,6 +217,7 @@ async function openDetail(id) {
     <h3 style="margin-top:24px">Stock &amp; value</h3>
     <p class="meta">Currently <strong>${item.quantity}</strong> in stock. Cost basis (what you paid, per unit): ${money(item.avg_unit_cost)} — this is what profit is calculated against and never changes here.</p>
     ${item.quantity > 0 ? `<p class="meta">Sitting since last restock: ${daysAgo(item.updated_at)} day(s)</p>` : ""}
+    ${item.quantity > 0 ? `<div class="btn-row"><a class="btn" href="sales.html?item=${item.id}">Sell this item</a></div>` : `<p class="hint">Out of stock — nothing to sell.</p>`}
 
     <label for="i-value">Estimated resale value per unit ${sourceBadgeLike(isManual)}</label>
     <input id="i-value" type="number" step="0.01" min="0" value="${item.estimated_value ?? ""}" placeholder="auto: ${autoEstimate.toFixed(2)} (item cost × ${multiplier})" />

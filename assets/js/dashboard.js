@@ -2,15 +2,7 @@ import { supabase } from "./supabaseClient.js";
 import { requireSession } from "./auth.js";
 import { renderNav } from "./nav.js";
 import { money, shortDate, escapeHtml } from "./format.js";
-import { getDefaultValueMultiplier } from "./inventoryMatch.js";
-
-// Mirrors inventory.js: inventory "value" is the estimated resale value, not
-// the cost basis — estimated_value when told, else the default multiplier
-// against the item-only cost (never against avg_unit_cost, which is real
-// cost basis used for profit math elsewhere and must stay untouched).
-function estimatedValueFor(item, multiplier) {
-  return item.estimated_value != null ? Number(item.estimated_value) : Number(item.avg_item_cost) * multiplier;
-}
+import { getDefaultValueMultiplier, estimatedValueFor } from "./inventoryMatch.js";
 
 const STUCK_ORDER_DAYS = 14;
 const SLOW_MOVER_DAYS = 21;
@@ -22,6 +14,7 @@ async function main() {
 
   try {
     await Promise.all([
+      loadUrgentAlerts(),
       loadBalances(),
       loadInventoryValue(),
       loadInTransit(),
@@ -37,6 +30,46 @@ async function main() {
     el.style.display = "block";
     el.textContent = "Couldn't load some numbers: " + err.message;
   }
+}
+
+// Time-critical action items (e.g. "pay this forwarder before the package is
+// abandoned") get their own bold banner at the very top of the dashboard —
+// separate from the "Deals & drops" card, which is informational, not
+// something that costs money if ignored.
+async function loadUrgentAlerts() {
+  const { data, error } = await supabase
+    .from("market_alerts")
+    .select("id, title, description, url")
+    .eq("kind", "urgent")
+    .eq("dismissed", false)
+    .order("discovered_at", { ascending: false });
+  if (error) throw error;
+
+  const container = document.getElementById("urgent-alerts");
+  if (!data.length) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = data
+    .map(
+      (a) => `<div class="urgent-banner">
+        <div class="title">⚠️ ${escapeHtml(a.title)}</div>
+        ${a.description ? `<p class="meta" style="margin:6px 0">${escapeHtml(a.description)}</p>` : ""}
+        <div class="btn-row" style="margin-top:8px">
+          ${a.url ? `<a class="btn secondary" href="${escapeHtml(a.url)}">Handle this now</a>` : ""}
+          <button type="button" class="btn secondary urgent-dismiss" data-id="${a.id}">Dismiss</button>
+        </div>
+      </div>`,
+    )
+    .join("");
+
+  container.querySelectorAll(".urgent-dismiss").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await supabase.from("market_alerts").update({ dismissed: true }).eq("id", btn.dataset.id);
+      loadUrgentAlerts();
+    });
+  });
 }
 
 async function loadBalances() {
@@ -233,6 +266,7 @@ async function loadMarketAlerts() {
   const { data, error } = await supabase
     .from("market_alerts")
     .select("id, kind, title, description, url, expires_at")
+    .in("kind", ["coupon", "deal", "drop"])
     .eq("dismissed", false)
     .order("discovered_at", { ascending: false })
     .limit(8);
