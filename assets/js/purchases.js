@@ -215,7 +215,7 @@ async function openDetail(id) {
 
   body.innerHTML = `
     <h2>${escapeHtml(purchase.source || "Purchase")} ${statusPill(purchase.status)}</h2>
-    ${purchase.source_url ? `<p><a href="${escapeHtml(purchase.source_url)}" target="_blank" rel="noopener">View original order/listing ↗</a></p>` : ""}
+    ${purchase.source_url ? `<p><a href="${escapeHtml(purchase.source_url)}" target="_blank" rel="noopener">${purchase.source === "Vinted" ? "Vinted purchase history ↗" : "View original order/listing ↗"}</a></p>` : ""}
     <p class="meta">${shortDate(purchase.order_date)} · paid from ${escapeHtml(purchase.payment_account)}${purchase.tracking_number ? ` · tracking ${escapeHtml(purchase.tracking_number)}` : ""}${purchase.expected_arrival_date && purchase.status !== "received" ? ` · expected by ${shortDate(purchase.expected_arrival_date)}` : ""}</p>
     ${mediaHtml}
     ${shipmentHtml}
