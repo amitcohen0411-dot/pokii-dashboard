@@ -173,8 +173,8 @@ async function loadList() {
           </div>
         </div>
         <div style="text-align:right">
-          <div class="title">${money(item.quantity * value)}${valueTag}</div>
-          <div class="meta">cost ${money(item.avg_unit_cost)}</div>
+          <div class="title">${money(value)}${valueTag}</div>
+          <div class="meta">cost ${money(item.avg_unit_cost)}${item.quantity > 1 ? ` · ${money(item.quantity * value)} total` : ""}</div>
           ${item.quantity > 0 ? `<a class="btn secondary" style="padding:4px 10px;font-size:13px;margin-top:4px" href="sales.html?item=${item.id}" onclick="event.stopPropagation()">Sell</a>` : ""}
         </div>
       </div>`;

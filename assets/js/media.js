@@ -31,7 +31,12 @@ export async function analyzeMedia({ mediaPath, mediaType, mode, hint }) {
   return data;
 }
 
+// A stored "path" is normally a private-bucket object key, but an inventory
+// item's photo can also be a plain external URL (e.g. pulled from the
+// user's own storefront) — pass those straight through instead of trying
+// to sign them as a storage path.
 export async function getMediaSignedUrl(path) {
+  if (/^https?:\/\//.test(path)) return path;
   const { data, error } = await supabase.storage.from("media").createSignedUrl(path, 3600);
   if (error) throw error;
   return data.signedUrl;
