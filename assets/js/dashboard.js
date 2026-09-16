@@ -21,15 +21,13 @@ async function main() {
   try {
     await Promise.all([
       loadUrgentAlerts(),
-      loadReminders(),
       loadBalances(),
       loadInventoryValue(),
       loadInTransit(),
       loadMonthNumbers(),
-      loadStuckOrders(),
-      loadSlowMovers(),
-      loadUnpaidShipments(),
-      loadOverdueShipments(),
+      loadNeedsAttention(),
+      loadReminders(),
+      loadRecentActivity(),
       loadMarketAlerts(),
     ]);
   } catch (err) {
@@ -244,108 +242,127 @@ function daysAgo(dateStr) {
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
 }
 
-async function loadStuckOrders() {
-  const cutoff = new Date(Date.now() - STUCK_ORDER_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const { data, error } = await supabase
-    .from("purchases")
-    .select("id, source, order_date, status, total_amount")
-    .in("status", ["ordered", "shipped"])
-    .lte("order_date", cutoff)
-    .order("order_date")
-    .limit(5);
-  if (error) throw error;
-  if (!data.length) return;
+const FORWARDER_LABEL = { redbox: "Redbox", myus: "MyUS", other: "forwarder" };
 
-  document.getElementById("stuck-orders-card").style.display = "block";
-  document.getElementById("stuck-orders-list").innerHTML = data
-    .map(
-      (p) => `<div class="list-row">
-        <div>
-          <div class="title">${escapeHtml(p.source || "Purchase")}</div>
-          <div class="meta">${shortDate(p.order_date)} · ${daysAgo(p.order_date)}d ago · ${p.status}</div>
-        </div>
-        <div class="title">${money(p.total_amount)}</div>
-      </div>`,
-    )
-    .join("");
-}
+// Everything that used to be four separate cards (stuck orders, slow movers,
+// unpaid shipments, overdue shipments) collapsed into one "Needs attention"
+// list — same underlying queries, just one place to scan instead of four
+// mostly-empty boxes taking up the page.
+async function loadNeedsAttention() {
+  const stuckCutoff = new Date(Date.now() - STUCK_ORDER_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const slowCutoff = new Date(Date.now() - SLOW_MOVER_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const today = new Date().toISOString().slice(0, 10);
 
-async function loadSlowMovers() {
-  const cutoff = new Date(Date.now() - SLOW_MOVER_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const [{ data, error }, multiplier] = await Promise.all([
+  const [stuckRes, slowRes, unpaidRes, overdueRes, multiplier] = await Promise.all([
+    supabase
+      .from("purchases")
+      .select("id, source, order_date, status, total_amount")
+      .in("status", ["ordered", "shipped"])
+      .lte("order_date", stuckCutoff)
+      .order("order_date")
+      .limit(5),
     supabase
       .from("inventory_items")
       .select("id, name, quantity, avg_item_cost, estimated_value, updated_at")
       .gt("quantity", 0)
-      .lte("updated_at", cutoff)
+      .lte("updated_at", slowCutoff)
       .order("updated_at")
+      .limit(5),
+    supabase.from("forwarder_shipments").select("id, forwarder, shipping_cost, created_at").eq("payment_status", "unpaid").order("created_at").limit(5),
+    supabase
+      .from("forwarder_shipments")
+      .select("id, forwarder, tracking_number, expected_arrival_date")
+      .is("received_at", null)
+      .not("expected_arrival_date", "is", null)
+      .lt("expected_arrival_date", today)
+      .order("expected_arrival_date")
       .limit(5),
     getDefaultValueMultiplier(),
   ]);
-  if (error) throw error;
-  if (!data.length) return;
+  for (const r of [stuckRes, slowRes, unpaidRes, overdueRes]) if (r.error) throw r.error;
 
-  document.getElementById("slow-movers-card").style.display = "block";
-  document.getElementById("slow-movers-list").innerHTML = data
+  const rows = [];
+  unpaidRes.data.forEach((s) =>
+    rows.push({
+      badge: "Unpaid shipment",
+      title: FORWARDER_LABEL[s.forwarder],
+      meta: `created ${shortDate(s.created_at)}`,
+      amount: money(s.shipping_cost),
+      negative: true,
+      href: "orders.html",
+    }),
+  );
+  overdueRes.data.forEach((s) =>
+    rows.push({
+      badge: "Running late",
+      title: FORWARDER_LABEL[s.forwarder] + (s.tracking_number ? ` · ${s.tracking_number}` : ""),
+      meta: `expected ${shortDate(s.expected_arrival_date)}`,
+      href: "orders.html",
+    }),
+  );
+  stuckRes.data.forEach((p) =>
+    rows.push({
+      badge: "Needs a status update",
+      title: p.source || "Purchase",
+      meta: `${shortDate(p.order_date)} · ${daysAgo(p.order_date)}d ago · ${p.status}`,
+      amount: money(p.total_amount),
+      href: `purchases.html?id=${p.id}`,
+    }),
+  );
+  slowRes.data.forEach((item) =>
+    rows.push({
+      badge: "Sitting 21+ days",
+      title: item.name,
+      meta: `${daysAgo(item.updated_at)}d in stock · ${item.quantity} units`,
+      amount: money(item.quantity * estimatedValueFor(item, multiplier)),
+      href: "inventory.html",
+    }),
+  );
+
+  const container = document.getElementById("needs-attention-list");
+  if (!rows.length) {
+    container.innerHTML = `<p class="hint">Nothing needs your attention right now.</p>`;
+    return;
+  }
+  container.innerHTML = rows
     .map(
-      (item) => `<div class="list-row">
+      (r) => `<a class="list-row" href="${r.href}" style="text-decoration:none;color:inherit">
         <div>
-          <div class="title">${escapeHtml(item.name)}</div>
-          <div class="meta">${daysAgo(item.updated_at)}d in stock · ${item.quantity} units</div>
+          <div class="title">${escapeHtml(r.title)} <span class="badge badge-edited">${r.badge}</span></div>
+          <div class="meta">${escapeHtml(r.meta)}</div>
         </div>
-        <div class="title">${money(item.quantity * estimatedValueFor(item, multiplier))}</div>
-      </div>`,
+        ${r.amount ? `<div class="title${r.negative ? " negative" : ""}">${r.amount}</div>` : ""}
+      </a>`,
     )
     .join("");
 }
 
-const FORWARDER_LABEL = { redbox: "Redbox", myus: "MyUS", other: "forwarder" };
+const ACTIVITY_LABEL = { purchase: "Purchase", sale: "Sale", shipping: "Shipping paid", adjustment: "Adjustment" };
 
-async function loadUnpaidShipments() {
+// A plain "what happened most recently" feed pulled straight from the cash
+// ledger — the one place every kind of money movement already lands, so it
+// doubles as an activity log for free.
+async function loadRecentActivity() {
   const { data, error } = await supabase
-    .from("forwarder_shipments")
-    .select("id, forwarder, shipping_cost, created_at")
-    .eq("payment_status", "unpaid")
-    .order("created_at")
-    .limit(5);
+    .from("transactions")
+    .select("id, account, amount, kind, note, occurred_at")
+    .order("occurred_at", { ascending: false })
+    .limit(8);
   if (error) throw error;
-  if (!data.length) return;
 
-  document.getElementById("unpaid-shipments-card").style.display = "block";
-  document.getElementById("unpaid-shipments-list").innerHTML = data
+  const container = document.getElementById("recent-activity-list");
+  if (!data.length) {
+    container.innerHTML = `<p class="hint">Nothing yet.</p>`;
+    return;
+  }
+  container.innerHTML = data
     .map(
-      (s) => `<div class="list-row">
+      (t) => `<div class="list-row">
         <div>
-          <div class="title">${FORWARDER_LABEL[s.forwarder]}</div>
-          <div class="meta">created ${shortDate(s.created_at)}</div>
+          <div class="title">${ACTIVITY_LABEL[t.kind] || t.kind} <span class="meta">· ${escapeHtml(t.account)}</span></div>
+          <div class="meta">${shortDate(t.occurred_at)}${t.note ? ` · ${escapeHtml(t.note)}` : ""}</div>
         </div>
-        <div class="title negative">${money(s.shipping_cost)}</div>
-      </div>`,
-    )
-    .join("");
-}
-
-async function loadOverdueShipments() {
-  const today = new Date().toISOString().slice(0, 10);
-  const { data, error } = await supabase
-    .from("forwarder_shipments")
-    .select("id, forwarder, tracking_number, expected_arrival_date")
-    .is("received_at", null)
-    .not("expected_arrival_date", "is", null)
-    .lt("expected_arrival_date", today)
-    .order("expected_arrival_date")
-    .limit(5);
-  if (error) throw error;
-  if (!data.length) return;
-
-  document.getElementById("overdue-shipments-card").style.display = "block";
-  document.getElementById("overdue-shipments-list").innerHTML = data
-    .map(
-      (s) => `<div class="list-row">
-        <div>
-          <div class="title">${FORWARDER_LABEL[s.forwarder]}${s.tracking_number ? ` · ${escapeHtml(s.tracking_number)}` : ""}</div>
-          <div class="meta">expected ${shortDate(s.expected_arrival_date)}</div>
-        </div>
+        <div class="title ${Number(t.amount) < 0 ? "negative" : "positive"}">${money(t.amount)}</div>
       </div>`,
     )
     .join("");
