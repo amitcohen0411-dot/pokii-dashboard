@@ -20,7 +20,7 @@ async function main() {
   renderNav("inventory.html");
 
   $("search-box").addEventListener("input", debounce(loadList, 250));
-  $("category-filter").addEventListener("change", loadList);
+  document.querySelectorAll(".category-check").forEach((cb) => cb.addEventListener("change", loadList));
   $("sort-select").addEventListener("change", loadList);
   $("back-btn").addEventListener("click", showList);
   $("show-add-btn").addEventListener("click", showAddForm);
@@ -116,31 +116,40 @@ const SORTERS = {
 
 async function loadList() {
   const search = $("search-box").value.trim();
-  const category = $("category-filter").value;
+  const categories = Array.from(document.querySelectorAll(".category-check:checked")).map((cb) => cb.value);
   const sort = $("sort-select").value;
 
-  let q = supabase.from("inventory_items").select("*");
+  const container = $("inventory-list");
+  if (!categories.length) {
+    container.innerHTML = `<div class="empty-state">No type selected — check at least one above.</div>`;
+    $("unit-count").textContent = "";
+    return;
+  }
+
+  let q = supabase.from("inventory_items").select("*").in("category", categories);
   if (search) q = q.ilike("name", `%${search}%`);
-  if (category) q = q.eq("category", category);
   const [{ data, error }, multiplier] = await Promise.all([q, getDefaultValueMultiplier()]);
 
-  const container = $("inventory-list");
   if (error) {
     container.innerHTML = `<p class="field-error">${escapeHtml(error.message)}</p>`;
     return;
   }
   if (!data.length) {
-    container.innerHTML = `<div class="empty-state">No inventory yet — it fills up as you log purchases.</div>`;
+    container.innerHTML = `<div class="empty-state">Nothing matches — it fills up as you log purchases.</div>`;
     $("unit-count").textContent = "";
     return;
   }
   data.sort((a, b) => SORTERS[sort](a, b, multiplier));
 
-  // "In stock" below counts pops (units), not rows — a bundle logged as one
-  // line with quantity 2 still counts as 2 here, since that's the number
-  // that actually matters when you're asking "how many pops do I have."
+  // Both numbers reflect exactly what's filtered/searched right now — pops
+  // counts units, not rows (a bundle logged as one line with quantity 2
+  // still counts as 2), and value is what those units would sell for at
+  // the currently-checked type(s) — e.g. check only Funko to see just pop
+  // value, or uncheck "Other" to see Funko + Pokémon combined.
   const totalUnits = data.reduce((sum, item) => sum + item.quantity, 0);
-  $("unit-count").textContent = `${totalUnits} pop${totalUnits === 1 ? "" : "s"} in stock across ${data.length} listing${data.length === 1 ? "" : "s"}`;
+  const totalValue = data.reduce((sum, item) => sum + item.quantity * estimatedValueFor(item, multiplier), 0);
+  $("unit-count").textContent =
+    `${totalUnits} pop${totalUnits === 1 ? "" : "s"} in stock across ${data.length} listing${data.length === 1 ? "" : "s"} · ${money(totalValue)} value`;
 
   const thumbUrls = await Promise.all(
     data.map((item) => (item.image_url ? getMediaSignedUrl(item.image_url).catch(() => null) : Promise.resolve(null))),

@@ -18,28 +18,27 @@
       <div class="card">
         <label for="search-box">Search</label>
         <input id="search-box" placeholder="Search by name…" />
-        <div class="row" style="display:flex; gap:8px;">
-          <div style="flex:1">
-            <label for="category-filter">Type</label>
-            <select id="category-filter">
-              <option value="">All</option>
-              <option value="funko">Funko</option>
-              <option value="pokemon_card">Pokémon card</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div style="flex:1">
-            <label for="sort-select">Sort by</label>
-            <select id="sort-select">
-              <option value="name">Name (A–Z)</option>
-              <option value="value_desc">Value: high to low</option>
-              <option value="value_asc">Value: low to high</option>
-              <option value="cost_desc">Cost: high to low</option>
-              <option value="qty_desc">Quantity: most in stock</option>
-              <option value="oldest">Oldest in stock first</option>
-            </select>
-          </div>
+        <label>Type <span class="hint">(check any combination — uncheck one to exclude just that type)</span></label>
+        <div class="row" style="display:flex; gap:14px; margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
+            <input type="checkbox" class="category-check" value="funko" checked /> Funko
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
+            <input type="checkbox" class="category-check" value="pokemon_card" checked /> Pokémon card
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
+            <input type="checkbox" class="category-check" value="other" checked /> Other
+          </label>
         </div>
+        <label for="sort-select">Sort by</label>
+        <select id="sort-select">
+          <option value="name">Name (A–Z)</option>
+          <option value="value_desc">Value: high to low</option>
+          <option value="value_asc">Value: low to high</option>
+          <option value="cost_desc">Cost: high to low</option>
+          <option value="qty_desc">Quantity: most in stock</option>
+          <option value="oldest">Oldest in stock first</option>
+        </select>
       </div>
       <div class="card" id="inventory-list">
         <p class="spinner-text">Loading…</p>
