@@ -11,6 +11,15 @@
 
     <div id="urgent-alerts"></div>
 
+    <div class="card" id="reminders-card" style="margin-top:20px">
+      <h3 style="margin-top:0">Notes &amp; reminders</h3>
+      <div id="reminders-list"></div>
+      <div class="row" style="display:flex; gap:8px; margin-top:8px">
+        <input id="reminder-input" placeholder="Add a reminder…" style="flex:1" />
+        <button class="btn secondary" id="reminder-add-btn">Add</button>
+      </div>
+    </div>
+
     <h1 style="margin-top:20px">This month</h1>
 
     <div class="grid-2">
@@ -25,6 +34,18 @@
       <div class="card">
         <div class="stat-label">Card balance</div>
         <div class="stat-value" id="bal-card">—</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Adjust a balance</div>
+        <select id="adj-account">
+          <option value="bit">Bit</option>
+          <option value="cash">Cash</option>
+          <option value="card">Card</option>
+        </select>
+        <input id="adj-amount" type="number" step="0.01" placeholder="Amount (+ to add, − to subtract)" />
+        <input id="adj-reason" placeholder="Reason (required — e.g. got it as a gift)" />
+        <button class="btn secondary" id="adj-save-btn" style="margin-top:6px">Save adjustment</button>
+        <p class="field-error" id="adj-error" style="display:none"></p>
       </div>
       <div class="card">
         <div class="stat-label">Inventory value</div>

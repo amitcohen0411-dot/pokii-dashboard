@@ -45,6 +45,7 @@ async function showFormForItem(itemId) {
     $("confirm-error").style.display = "block";
     return;
   }
+  $("s-name").value = item.name;
   const multiplier = await getDefaultValueMultiplier();
   draftLines = [
     {
@@ -106,6 +107,7 @@ function showForm() {
   selectedFile = null;
   currentMediaPath = null;
   currentMediaType = null;
+  $("s-name").value = "";
   $("s-channel").value = "";
   $("s-hint").value = "";
   $("s-media").value = "";
@@ -121,7 +123,7 @@ function showForm() {
 async function loadList() {
   const { data, error } = await supabase
     .from("sales")
-    .select("id, channel, sale_date, total_amount, payment_account")
+    .select("id, name, channel, sale_date, total_amount, payment_account")
     .order("sale_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -139,7 +141,7 @@ async function loadList() {
       (s) => `
       <div class="list-row" style="cursor:pointer" data-id="${s.id}">
         <div>
-          <div class="title">${escapeHtml(s.channel || "Sale")}</div>
+          <div class="title">${escapeHtml(s.name || s.channel || "Sale")}</div>
           <div class="meta">${shortDate(s.sale_date)} · ${escapeHtml(s.payment_account)}</div>
         </div>
         <div class="title">${money(s.total_amount)}</div>
@@ -179,7 +181,7 @@ async function openDetail(id) {
   const totalProfit = (lines || []).reduce((sum, l) => sum + l.quantity * (Number(l.unit_price) - Number(l.unit_cost_basis)), 0);
 
   body.innerHTML = `
-    <h2>${escapeHtml(sale.channel || "Sale")}</h2>
+    <h2>${escapeHtml(sale.name || sale.channel || "Sale")}</h2>
     <p class="meta">${shortDate(sale.sale_date)} · paid into ${escapeHtml(sale.payment_account)}</p>
     ${mediaHtml}
     ${sale.notes ? `<p>${escapeHtml(sale.notes)}</p>` : ""}
@@ -242,6 +244,7 @@ function openEditSale(sale, lines) {
   $("detail-view").style.display = "none";
   $("form-view").style.display = "block";
 
+  $("s-name").value = sale.name || "";
   $("s-date").value = sale.sale_date;
   $("s-channel").value = sale.channel || "";
   $("s-account").value = sale.payment_account;
@@ -488,6 +491,7 @@ async function onConfirm() {
     const totalAmount = Number($("s-total").value) || draftLines.reduce((s, l) => s + l.quantity * Number(l.unit_price), 0);
 
     const salePayload = {
+      name: $("s-name").value.trim() || null,
       sale_date: $("s-date").value,
       channel: $("s-channel").value || null,
       payment_account: $("s-account").value,

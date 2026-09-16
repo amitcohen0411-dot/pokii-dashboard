@@ -12,9 +12,16 @@ async function main() {
   if (!session) return;
   renderNav("dashboard.html");
 
+  document.getElementById("reminder-add-btn").addEventListener("click", addReminder);
+  document.getElementById("reminder-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") addReminder();
+  });
+  document.getElementById("adj-save-btn").addEventListener("click", saveAdjustment);
+
   try {
     await Promise.all([
       loadUrgentAlerts(),
+      loadReminders(),
       loadBalances(),
       loadInventoryValue(),
       loadInTransit(),
@@ -70,6 +77,90 @@ async function loadUrgentAlerts() {
       loadUrgentAlerts();
     });
   });
+}
+
+// Plain free-text to-do list, not tied to anything else in the app — just a
+// place for "list the new haul," "pay Redbox," etc. to live on the page you
+// already open every day, instead of nowhere.
+async function loadReminders() {
+  const { data, error } = await supabase
+    .from("reminders")
+    .select("id, text, done")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const container = document.getElementById("reminders-list");
+  if (!data.length) {
+    container.innerHTML = `<p class="hint">Nothing on your list.</p>`;
+    return;
+  }
+  container.innerHTML = data
+    .map(
+      (r) => `<div class="list-row">
+        <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">
+          <input type="checkbox" class="reminder-toggle" data-id="${r.id}" ${r.done ? "checked" : ""} />
+          <span style="${r.done ? "text-decoration:line-through;color:var(--text-muted)" : ""}">${escapeHtml(r.text)}</span>
+        </label>
+        <button type="button" class="remove-btn reminder-delete" data-id="${r.id}">remove</button>
+      </div>`,
+    )
+    .join("");
+
+  container.querySelectorAll(".reminder-toggle").forEach((cb) => {
+    cb.addEventListener("change", async () => {
+      await supabase.from("reminders").update({ done: cb.checked }).eq("id", cb.dataset.id);
+      loadReminders();
+    });
+  });
+  container.querySelectorAll(".reminder-delete").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await supabase.from("reminders").delete().eq("id", btn.dataset.id);
+      loadReminders();
+    });
+  });
+}
+
+async function addReminder() {
+  const input = document.getElementById("reminder-input");
+  const text = input.value.trim();
+  if (!text) return;
+  await supabase.from("reminders").insert({ text });
+  input.value = "";
+  loadReminders();
+}
+
+// A manual, human-initiated balance change — e.g. cash received as a gift,
+// or correcting a count mismatch. Posted as a normal `adjustment`-kind
+// transaction (the same kind already used when a cancelled purchase refunds
+// its cash-out) so it flows through account_balances the same way every
+// other transaction does; the required reason is what marks it as a
+// deliberate manual entry rather than something the app computed on its own.
+async function saveAdjustment() {
+  const errorEl = document.getElementById("adj-error");
+  errorEl.style.display = "none";
+  const account = document.getElementById("adj-account").value;
+  const amount = Number(document.getElementById("adj-amount").value);
+  const reason = document.getElementById("adj-reason").value.trim();
+
+  if (!amount) {
+    errorEl.textContent = "Enter a non-zero amount.";
+    errorEl.style.display = "block";
+    return;
+  }
+  if (!reason) {
+    errorEl.textContent = "A reason is required for every manual balance adjustment.";
+    errorEl.style.display = "block";
+    return;
+  }
+  try {
+    await supabase.from("transactions").insert({ account, amount, kind: "adjustment", note: reason });
+    document.getElementById("adj-amount").value = "";
+    document.getElementById("adj-reason").value = "";
+    await loadBalances();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = "block";
+  }
 }
 
 async function loadBalances() {
