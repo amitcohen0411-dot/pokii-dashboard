@@ -131,9 +131,16 @@ async function loadList() {
   }
   if (!data.length) {
     container.innerHTML = `<div class="empty-state">No inventory yet — it fills up as you log purchases.</div>`;
+    $("unit-count").textContent = "";
     return;
   }
   data.sort((a, b) => SORTERS[sort](a, b, multiplier));
+
+  // "In stock" below counts pops (units), not rows — a bundle logged as one
+  // line with quantity 2 still counts as 2 here, since that's the number
+  // that actually matters when you're asking "how many pops do I have."
+  const totalUnits = data.reduce((sum, item) => sum + item.quantity, 0);
+  $("unit-count").textContent = `${totalUnits} pop${totalUnits === 1 ? "" : "s"} in stock across ${data.length} listing${data.length === 1 ? "" : "s"}`;
 
   const thumbUrls = await Promise.all(
     data.map((item) => (item.image_url ? getMediaSignedUrl(item.image_url).catch(() => null) : Promise.resolve(null))),
