@@ -3,7 +3,15 @@ import { requireSession } from "./auth.js";
 import { renderNav } from "./nav.js";
 import { money, shortDate, sourceBadge, escapeHtml } from "./format.js";
 import { uploadMedia, mediaTypeFromFile, analyzeMedia, getMediaSignedUrl, MAX_MEDIA_BYTES } from "./media.js";
-import { searchInventory, getInventoryItem, removeStock, estimatedValueFor, getDefaultValueMultiplier } from "./inventoryMatch.js";
+import {
+  searchInventory,
+  getInventoryItem,
+  removeStock,
+  estimatedValueFor,
+  getDefaultValueMultiplier,
+  createManualInventoryItem,
+  updateManualInventoryItem,
+} from "./inventoryMatch.js";
 
 let draftLines = [];
 let selectedFile = null;
@@ -11,6 +19,7 @@ let currentMediaPath = null;
 let currentMediaType = null;
 let editingSaleId = null;
 let editingOriginalMedia = { url: null, type: null };
+let tradeExistingItemId = null;
 
 const $ = (id) => document.getElementById(id);
 const CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon card", other: "Other" };
@@ -60,7 +69,13 @@ async function showFormForItem(itemId) {
     },
   ];
   renderDraftLines();
+  showDraftAndTradeCards();
+}
+
+function showDraftAndTradeCards() {
   $("draft-card").style.display = "block";
+  $("trade-card").style.display = "block";
+  $("save-card").style.display = "block";
 }
 
 function wireStaticHandlers() {
@@ -77,11 +92,36 @@ function wireStaticHandlers() {
   $("manual-btn").addEventListener("click", () => {
     draftLines = [];
     renderDraftLines();
-    $("draft-card").style.display = "block";
+    showDraftAndTradeCards();
     addDraftLine({ source: "human" });
   });
   $("add-item-btn").addEventListener("click", () => addDraftLine({ source: "human" }));
   $("confirm-btn").addEventListener("click", onConfirm);
+
+  $("trade-toggle").addEventListener("change", (e) => {
+    $("trade-fields").style.display = e.target.checked ? "block" : "none";
+    if (e.target.checked && !$("t-value").value) recalcTradeValue();
+  });
+  $("trade-recalc-btn").addEventListener("click", recalcTradeValue);
+}
+
+async function recalcTradeValue() {
+  const multiplier = await getDefaultValueMultiplier();
+  let worthTotal = 0;
+  for (const l of draftLines) {
+    if (l.matchItemId) {
+      try {
+        const item = await getInventoryItem(l.matchItemId);
+        worthTotal += estimatedValueFor(item, multiplier) * l.quantity;
+        continue;
+      } catch {
+        /* fall through to sale price */
+      }
+    }
+    worthTotal += Number(l.unit_price || 0) * l.quantity;
+  }
+  const cash = Number($("s-total").value) || draftLines.reduce((s, l) => s + l.quantity * Number(l.unit_price || 0), 0);
+  $("t-value").value = Math.max(0, worthTotal - cash).toFixed(2);
 }
 
 function showList() {
@@ -103,10 +143,13 @@ function showForm() {
   $("form-view").style.display = "block";
   $("s-date").value = new Date().toISOString().slice(0, 10);
   $("draft-card").style.display = "none";
+  $("trade-card").style.display = "none";
+  $("save-card").style.display = "none";
   draftLines = [];
   selectedFile = null;
   currentMediaPath = null;
   currentMediaType = null;
+  tradeExistingItemId = null;
   $("s-name").value = "";
   $("s-channel").value = "";
   $("s-hint").value = "";
@@ -115,6 +158,12 @@ function showForm() {
   $("s-account").value = "bit";
   $("analyze-btn").disabled = true;
   $("analyze-status").style.display = "none";
+  $("trade-toggle").checked = false;
+  $("trade-fields").style.display = "none";
+  $("t-name").value = "";
+  $("t-category").value = "funko";
+  $("t-qty").value = "1";
+  $("t-value").value = "";
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +234,7 @@ async function openDetail(id) {
     <p class="meta">${shortDate(sale.sale_date)} · paid into ${escapeHtml(sale.payment_account)}</p>
     ${mediaHtml}
     ${sale.notes ? `<p>${escapeHtml(sale.notes)}</p>` : ""}
+    ${sale.trade_inventory_item_id ? `<p class="meta">🔄 Also received in trade: <strong>${escapeHtml(sale.trade_item_name || "an item")}</strong>${sale.trade_value != null ? ` (est. ${money(sale.trade_value)}, added to inventory)` : ""}</p>` : ""}
     <h3>Items</h3>
     ${(lines || [])
       .map(
@@ -202,7 +252,7 @@ async function openDetail(id) {
       <button class="btn secondary" id="edit-sale-btn">Edit</button>
       <button class="btn danger" id="delete-sale-btn">Delete sale</button>
     </div>
-    <p class="hint">Deleting or editing returns this sale's items to inventory before reapplying, and removes/reinserts the transaction.</p>
+    <p class="hint">Deleting or editing returns this sale's items to inventory before reapplying, and removes/reinserts the transaction.${sale.trade_inventory_item_id ? " Any traded-in item stays in inventory either way — it's yours regardless of what happens to this sale record." : ""}</p>
   `;
 
   $("delete-sale-btn").addEventListener("click", () => deleteSale(sale, lines || []));
@@ -233,7 +283,7 @@ async function restoreSaleStock(lines) {
   }
 }
 
-function openEditSale(sale, lines) {
+async function openEditSale(sale, lines) {
   editingSaleId = sale.id;
   editingOriginalMedia = { url: sale.media_url, type: sale.media_type };
   $("form-heading").textContent = "Edit sale";
@@ -262,7 +312,25 @@ function openEditSale(sale, lines) {
     matchItemId: l.inventory_item_id,
   }));
   renderDraftLines();
-  $("draft-card").style.display = "block";
+  showDraftAndTradeCards();
+
+  tradeExistingItemId = sale.trade_inventory_item_id || null;
+  if (tradeExistingItemId) {
+    const tItem = await getInventoryItem(tradeExistingItemId).catch(() => null);
+    $("trade-toggle").checked = true;
+    $("trade-fields").style.display = "block";
+    $("t-name").value = sale.trade_item_name || tItem?.name || "";
+    $("t-category").value = tItem?.category || "other";
+    $("t-qty").value = tItem?.quantity ?? 1;
+    $("t-value").value = sale.trade_value ?? tItem?.estimated_value ?? "";
+  } else {
+    $("trade-toggle").checked = false;
+    $("trade-fields").style.display = "none";
+    $("t-name").value = "";
+    $("t-category").value = "funko";
+    $("t-qty").value = "1";
+    $("t-value").value = "";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -486,9 +554,42 @@ async function onConfirm() {
     if (!proceed) return;
   }
 
+  const tradeActive = $("trade-toggle").checked;
+  if (tradeActive && !$("t-name").value.trim()) {
+    errorEl.textContent = "Enter what item you received in trade, or uncheck the trade option.";
+    errorEl.style.display = "block";
+    return;
+  }
+
   $("confirm-btn").disabled = true;
   try {
     const totalAmount = Number($("s-total").value) || draftLines.reduce((s, l) => s + l.quantity * Number(l.unit_price), 0);
+
+    let tradeFields = { trade_inventory_item_id: null, trade_item_name: null, trade_value: null };
+    if (tradeActive) {
+      const tName = $("t-name").value.trim();
+      const tCategory = $("t-category").value;
+      const tQuantity = Number($("t-qty").value) || 1;
+      const tValue = $("t-value").value === "" ? null : Number($("t-value").value);
+      if (tradeExistingItemId) {
+        await updateManualInventoryItem(tradeExistingItemId, {
+          name: tName,
+          category: tCategory,
+          quantity: tQuantity,
+          estimatedValue: tValue,
+        });
+        tradeFields = { trade_inventory_item_id: tradeExistingItemId, trade_item_name: tName, trade_value: tValue };
+      } else {
+        const newItem = await createManualInventoryItem({
+          name: tName,
+          category: tCategory,
+          quantity: tQuantity,
+          unitCost: 0,
+          estimatedValue: tValue,
+        });
+        tradeFields = { trade_inventory_item_id: newItem.id, trade_item_name: tName, trade_value: tValue };
+      }
+    }
 
     const salePayload = {
       name: $("s-name").value.trim() || null,
@@ -497,6 +598,7 @@ async function onConfirm() {
       payment_account: $("s-account").value,
       total_amount: totalAmount,
       notes: $("s-hint").value || null,
+      ...tradeFields,
     };
 
     let sale;

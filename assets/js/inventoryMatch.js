@@ -49,6 +49,25 @@ export async function createManualInventoryItem({ name, category, quantity, unit
   return data;
 }
 
+// Edits a manually-tracked item (created via createManualInventoryItem, e.g.
+// a trade-in) in place — quantity is SET, not added to, unlike addStock.
+// Cost is deliberately untouched here (stays at whatever it was created
+// with, usually 0) since editing this is about the item's identity/value,
+// not re-stating what it cost.
+export async function updateManualInventoryItem(itemId, { name, category, quantity, estimatedValue }) {
+  const { error } = await supabase
+    .from("inventory_items")
+    .update({
+      name,
+      category,
+      quantity,
+      estimated_value: estimatedValue ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", itemId);
+  if (error) throw error;
+}
+
 export async function getInventoryItem(id) {
   const { data, error } = await supabase.from("inventory_items").select("*").eq("id", id).single();
   if (error) throw error;

@@ -67,7 +67,31 @@
         <h3>Items sold <span class="hint">— match each to the right stock item</span></h3>
         <div id="draft-items"></div>
         <button class="btn secondary" id="add-item-btn">+ Add item</button>
+      </div>
 
+      <div class="card" id="trade-card" style="display:none">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
+          <input type="checkbox" id="trade-toggle" /> Customer also gave an item in trade
+        </label>
+        <div id="trade-fields" style="display:none">
+          <label for="t-name">Item received</label>
+          <input id="t-name" placeholder="e.g. Charizard GX" />
+          <label for="t-category">Category</label>
+          <select id="t-category">
+            <option value="funko">Funko</option>
+            <option value="pokemon_card">Pokémon card</option>
+            <option value="other">Other</option>
+          </select>
+          <label for="t-qty">Quantity</label>
+          <input id="t-qty" type="number" min="1" value="1" />
+          <label for="t-value">Estimated value (₪) <span class="hint">— suggested from what the sold item(s) are worth minus what you actually charged; edit if you know better</span></label>
+          <input id="t-value" type="number" step="0.01" min="0" />
+          <button type="button" class="btn secondary" id="trade-recalc-btn" style="margin-top:6px">↻ Recalculate suggestion</button>
+          <p class="hint">Added to inventory at ₪0 cost — you got it in trade, not by paying for it, so its full future sale price will count as profit.</p>
+        </div>
+      </div>
+
+      <div class="card" id="save-card" style="display:none">
         <div class="btn-row">
           <button class="btn" id="confirm-btn">Save sale</button>
         </div>
