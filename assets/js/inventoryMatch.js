@@ -134,3 +134,34 @@ export async function setInventoryImage(itemId, mediaPath) {
     .eq("id", itemId);
   if (error) throw error;
 }
+
+// Mirrors orders.js's deriveState / dashboard.js's isFullyReceived: a
+// purchase only counts as physically in hand once its forwarder shipment (if
+// any) has arrived — a forwarder-less purchase counts once its own status is
+// "received".
+function isPurchaseReceived(p) {
+  if (!p.forwarder) return p.status === "received";
+  if (!p.forwarder_shipments) return false;
+  return Boolean(p.forwarder_shipments.received_at);
+}
+
+// Stock is added to inventory_items the moment a purchase is logged (see
+// addStock above), regardless of shipping status — so `quantity` conflates
+// "own it" with "physically home". This sums, per inventory item, how many
+// of those units still trace back to a not-yet-received purchase, so callers
+// can split "home" value from "in transit" value without changing how stock
+// itself accrues.
+export async function getInTransitQuantities() {
+  const { data, error } = await supabase
+    .from("purchase_line_items")
+    .select("inventory_item_id, quantity, purchases!inner(status, forwarder, forwarder_shipments(received_at))")
+    .not("inventory_item_id", "is", null)
+    .neq("purchases.status", "cancelled");
+  if (error || !data) return new Map();
+  const map = new Map();
+  for (const line of data) {
+    if (isPurchaseReceived(line.purchases)) continue;
+    map.set(line.inventory_item_id, (map.get(line.inventory_item_id) || 0) + line.quantity);
+  }
+  return map;
+}

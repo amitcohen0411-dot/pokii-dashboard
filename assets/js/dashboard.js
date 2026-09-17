@@ -2,7 +2,7 @@ import { supabase } from "./supabaseClient.js";
 import { requireSession } from "./auth.js";
 import { renderNav } from "./nav.js";
 import { money, shortDate, escapeHtml } from "./format.js";
-import { getDefaultValueMultiplier, estimatedValueFor } from "./inventoryMatch.js";
+import { getDefaultValueMultiplier, estimatedValueFor, getInTransitQuantities } from "./inventoryMatch.js";
 
 const STUCK_ORDER_DAYS = 14;
 const SLOW_MOVER_DAYS = 21;
@@ -173,13 +173,23 @@ async function loadBalances() {
 }
 
 async function loadInventoryValue() {
-  const [{ data, error }, multiplier] = await Promise.all([
-    supabase.from("inventory_items").select("quantity, avg_item_cost, estimated_value"),
+  const [{ data, error }, multiplier, inTransitQty] = await Promise.all([
+    supabase.from("inventory_items").select("id, quantity, avg_item_cost, estimated_value"),
     getDefaultValueMultiplier(),
+    getInTransitQuantities(),
   ]);
   if (error) throw error;
-  const total = data.reduce((sum, row) => sum + row.quantity * estimatedValueFor(row, multiplier), 0);
+  let total = 0;
+  let transitValue = 0;
+  for (const row of data) {
+    const unitValue = estimatedValueFor(row, multiplier);
+    total += row.quantity * unitValue;
+    const transitQty = Math.min(inTransitQty.get(row.id) || 0, row.quantity);
+    transitValue += transitQty * unitValue;
+  }
   document.getElementById("inv-value").textContent = money(total);
+  const splitEl = document.getElementById("inv-value-split");
+  splitEl.textContent = transitValue > 0 ? `${money(total - transitValue)} home · ${money(transitValue)} in transit` : "";
 }
 
 // Mirrors orders.js's deriveState: a purchase counts as "in transit" (value

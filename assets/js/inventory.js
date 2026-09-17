@@ -9,6 +9,7 @@ import {
   getDefaultValueMultiplier,
   createManualInventoryItem,
   estimatedValueFor,
+  getInTransitQuantities,
 } from "./inventoryMatch.js";
 
 const $ = (id) => document.getElementById(id);
@@ -128,7 +129,11 @@ async function loadList() {
 
   let q = supabase.from("inventory_items").select("*").in("category", categories);
   if (search) q = q.ilike("name", `%${search}%`);
-  const [{ data, error }, multiplier] = await Promise.all([q, getDefaultValueMultiplier()]);
+  const [{ data, error }, multiplier, inTransitQty] = await Promise.all([
+    q,
+    getDefaultValueMultiplier(),
+    getInTransitQuantities(),
+  ]);
 
   if (error) {
     container.innerHTML = `<p class="field-error">${escapeHtml(error.message)}</p>`;
@@ -145,11 +150,20 @@ async function loadList() {
   // counts units, not rows (a bundle logged as one line with quantity 2
   // still counts as 2), and value is what those units would sell for at
   // the currently-checked type(s) — e.g. check only Funko to see just pop
-  // value, or uncheck "Other" to see Funko + Pokémon combined.
+  // value, or uncheck "Other" to see Funko + Pokémon combined. Some of that
+  // value can still be in transit (purchased but not physically home yet) —
+  // stock still counts it, so the split is broken out rather than hidden.
   const totalUnits = data.reduce((sum, item) => sum + item.quantity, 0);
-  const totalValue = data.reduce((sum, item) => sum + item.quantity * estimatedValueFor(item, multiplier), 0);
+  let totalValue = 0;
+  let transitValue = 0;
+  for (const item of data) {
+    const unitValue = estimatedValueFor(item, multiplier);
+    totalValue += item.quantity * unitValue;
+    transitValue += Math.min(inTransitQty.get(item.id) || 0, item.quantity) * unitValue;
+  }
   $("unit-count").textContent =
-    `${totalUnits} pop${totalUnits === 1 ? "" : "s"} in stock across ${data.length} listing${data.length === 1 ? "" : "s"} · ${money(totalValue)} value`;
+    `${totalUnits} pop${totalUnits === 1 ? "" : "s"} in stock across ${data.length} listing${data.length === 1 ? "" : "s"} · ${money(totalValue)} value` +
+    (transitValue > 0 ? ` (${money(totalValue - transitValue)} home · ${money(transitValue)} in transit)` : "");
 
   const thumbUrls = await Promise.all(
     data.map((item) => (item.image_url ? getMediaSignedUrl(item.image_url).catch(() => null) : Promise.resolve(null))),
@@ -161,6 +175,8 @@ async function loadList() {
         ? `<img src="${thumbUrls[i]}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0" />`
         : `<div style="width:44px;height:44px;border-radius:8px;background:var(--border);flex-shrink:0"></div>`;
       const ageNote = item.quantity > 0 ? ` · ${daysAgo(item.updated_at)}d in stock` : "";
+      const transitQty = Math.min(inTransitQty.get(item.id) || 0, item.quantity);
+      const transitNote = transitQty > 0 ? ` · ${transitQty} in transit` : "";
       const value = estimatedValueFor(item, multiplier);
       const valueTag = item.estimated_value != null ? "" : ` <span class="badge badge-ai">est.</span>`;
       return `
@@ -169,7 +185,7 @@ async function loadList() {
           ${thumb}
           <div>
             <div class="title">${escapeHtml(item.name)}</div>
-            <div class="meta">${CATEGORY_LABEL[item.category] || item.category} · ${item.quantity} in stock${ageNote}</div>
+            <div class="meta">${CATEGORY_LABEL[item.category] || item.category} · ${item.quantity} in stock${ageNote}${transitNote}</div>
           </div>
         </div>
         <div style="text-align:right">
