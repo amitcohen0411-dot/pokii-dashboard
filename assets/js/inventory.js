@@ -1,7 +1,7 @@
 import { supabase } from "./supabaseClient.js";
 import { requireSession } from "./auth.js";
 import { renderNav } from "./nav.js";
-import { money, escapeHtml } from "./format.js";
+import { money, escapeHtml, shortDate } from "./format.js";
 import { getMediaSignedUrl, uploadMedia } from "./media.js";
 import {
   setInventoryImage,
@@ -189,9 +189,14 @@ async function openDetail(id) {
   const body = $("detail-body");
   body.innerHTML = `<p class="spinner-text">Loading…</p>`;
 
-  const [{ data: item, error }, multiplier] = await Promise.all([
+  const [{ data: item, error }, multiplier, { data: soldLines }] = await Promise.all([
     supabase.from("inventory_items").select("*").eq("id", id).single(),
     getDefaultValueMultiplier(),
+    supabase
+      .from("sale_line_items")
+      .select("quantity, unit_price, unit_cost_basis, sales!inner(sale_date, name, channel)")
+      .eq("inventory_item_id", id)
+      .order("sales(sale_date)", { ascending: false }),
   ]);
   if (error) {
     body.innerHTML = `<p class="field-error">${escapeHtml(error.message)}</p>`;
@@ -210,6 +215,26 @@ async function openDetail(id) {
 
   const autoEstimate = Number(item.avg_item_cost) * multiplier;
   const isManual = item.estimated_value != null;
+
+  const salesCount = (soldLines || []).reduce((sum, l) => sum + l.quantity, 0);
+  const avgSalePrice = salesCount
+    ? (soldLines || []).reduce((sum, l) => sum + l.quantity * Number(l.unit_price), 0) / salesCount
+    : null;
+  const salesHistoryHtml = salesCount
+    ? `
+    <h3 style="margin-top:24px">Sales history</h3>
+    <p class="meta">Sold <strong>${salesCount}</strong> unit${salesCount === 1 ? "" : "s"} · average <strong>${money(avgSalePrice)}</strong>/ea</p>
+    <div>
+      ${(soldLines || [])
+        .map(
+          (l) => `<div class="list-row">
+            <div class="meta">${shortDate(l.sales.sale_date)}${l.sales.name || l.sales.channel ? ` · ${escapeHtml(l.sales.name || l.sales.channel)}` : ""}</div>
+            <div>${money(l.unit_price)} × ${l.quantity}</div>
+          </div>`,
+        )
+        .join("")}
+    </div>`
+    : "";
 
   body.innerHTML = `
     ${imageHtml}
@@ -234,6 +259,7 @@ async function openDetail(id) {
     <p class="meta">Currently <strong>${item.quantity}</strong> in stock. Cost basis (what you paid, per unit): ${money(item.avg_unit_cost)} — this is what profit is calculated against and never changes here.</p>
     ${item.quantity > 0 ? `<p class="meta">Sitting since last restock: ${daysAgo(item.updated_at)} day(s)</p>` : ""}
     ${item.quantity > 0 ? `<div class="btn-row"><a class="btn" href="sales.html?item=${item.id}">Sell this item</a></div>` : `<p class="hint">Out of stock — nothing to sell.</p>`}
+    ${salesHistoryHtml}
 
     <label for="i-value">Estimated resale value per unit ${sourceBadgeLike(isManual)}</label>
     <input id="i-value" type="number" step="0.01" min="0" value="${item.estimated_value ?? ""}" placeholder="auto: ${autoEstimate.toFixed(2)} (item cost × ${multiplier})" />
