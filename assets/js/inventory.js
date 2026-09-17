@@ -172,8 +172,8 @@ async function loadList() {
   container.innerHTML = data
     .map((item, i) => {
       const thumb = thumbUrls[i]
-        ? `<img src="${thumbUrls[i]}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0" />`
-        : `<div style="width:44px;height:44px;border-radius:8px;background:var(--border);flex-shrink:0"></div>`;
+        ? `<img class="thumb thumb-md" src="${thumbUrls[i]}" />`
+        : `<div class="thumb-placeholder thumb-md"></div>`;
       const ageNote = item.quantity > 0 ? ` · ${daysAgo(item.updated_at)}d in stock` : "";
       const transitQty = Math.min(inTransitQty.get(item.id) || 0, item.quantity);
       const transitNote = transitQty > 0 ? ` · ${transitQty} in transit` : "";
@@ -223,7 +223,7 @@ async function openDetail(id) {
   if (item.image_url) {
     try {
       const url = await getMediaSignedUrl(item.image_url);
-      imageHtml = `<img src="${url}" style="width:100%;max-width:280px;border-radius:10px;margin-bottom:10px" />`;
+      imageHtml = `<img src="${url}" style="width:100%;max-width:320px;aspect-ratio:1;object-fit:cover;border-radius:12px;border:1px solid var(--border);margin-bottom:10px;display:block" />`;
     } catch {
       /* ignore missing image */
     }

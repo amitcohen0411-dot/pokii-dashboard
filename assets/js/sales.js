@@ -11,6 +11,7 @@ import {
   getDefaultValueMultiplier,
   createManualInventoryItem,
   updateManualInventoryItem,
+  setInventoryImage,
 } from "./inventoryMatch.js";
 
 let draftLines = [];
@@ -164,6 +165,7 @@ function showForm() {
   $("t-category").value = "funko";
   $("t-qty").value = "1";
   $("t-value").value = "";
+  $("t-photo").value = "";
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +174,7 @@ function showForm() {
 async function loadList() {
   const { data, error } = await supabase
     .from("sales")
-    .select("id, name, channel, sale_date, total_amount, payment_account")
+    .select("id, name, channel, sale_date, total_amount, payment_account, sale_line_items(created_at, inventory_items(image_url))")
     .order("sale_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -185,17 +187,32 @@ async function loadList() {
     container.innerHTML = `<div class="empty-state">No sales yet.</div>`;
     return;
   }
+
+  const firstImagePaths = data.map((s) => {
+    const lines = (s.sale_line_items || []).slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    return lines.find((l) => l.inventory_items?.image_url)?.inventory_items?.image_url || null;
+  });
+  const thumbUrls = await Promise.all(
+    firstImagePaths.map((path) => (path ? getMediaSignedUrl(path).catch(() => null) : Promise.resolve(null))),
+  );
+
   container.innerHTML = data
-    .map(
-      (s) => `
+    .map((s, i) => {
+      const thumb = thumbUrls[i]
+        ? `<img class="thumb thumb-sm" src="${thumbUrls[i]}" />`
+        : `<div class="thumb-placeholder thumb-sm"></div>`;
+      return `
       <div class="list-row" style="cursor:pointer" data-id="${s.id}">
-        <div>
-          <div class="title">${escapeHtml(s.name || s.channel || "Sale")}</div>
-          <div class="meta">${shortDate(s.sale_date)} · ${escapeHtml(s.payment_account)}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          ${thumb}
+          <div>
+            <div class="title">${escapeHtml(s.name || s.channel || "Sale")}</div>
+            <div class="meta">${shortDate(s.sale_date)} · ${escapeHtml(s.payment_account)}</div>
+          </div>
         </div>
         <div class="title">${money(s.total_amount)}</div>
-      </div>`,
-    )
+      </div>`;
+    })
     .join("");
   container.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", () => openDetail(el.dataset.id)));
 }
@@ -212,7 +229,17 @@ async function openDetail(id) {
     body.innerHTML = `<p class="field-error">${escapeHtml(error.message)}</p>`;
     return;
   }
-  const { data: lines } = await supabase.from("sale_line_items").select("*").eq("sale_id", id).order("created_at");
+  const { data: lines } = await supabase
+    .from("sale_line_items")
+    .select("*, inventory_items(image_url)")
+    .eq("sale_id", id)
+    .order("created_at");
+
+  const lineThumbUrls = await Promise.all(
+    (lines || []).map((l) =>
+      l.inventory_items?.image_url ? getMediaSignedUrl(l.inventory_items.image_url).catch(() => null) : Promise.resolve(null),
+    ),
+  );
 
   let mediaHtml = "";
   if (sale.media_url) {
@@ -229,23 +256,42 @@ async function openDetail(id) {
 
   const totalProfit = (lines || []).reduce((sum, l) => sum + l.quantity * (Number(l.unit_price) - Number(l.unit_cost_basis)), 0);
 
+  let tradeThumb = "";
+  if (sale.trade_inventory_item_id) {
+    const tItem = await getInventoryItem(sale.trade_inventory_item_id).catch(() => null);
+    if (tItem?.image_url) {
+      try {
+        const url = await getMediaSignedUrl(tItem.image_url);
+        tradeThumb = `<img class="thumb thumb-sm" src="${url}" style="vertical-align:middle;margin-right:8px" />`;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   body.innerHTML = `
     <h2>${escapeHtml(sale.name || sale.channel || "Sale")}</h2>
     <p class="meta">${shortDate(sale.sale_date)} · paid into ${escapeHtml(sale.payment_account)}</p>
     ${mediaHtml}
     ${sale.notes ? `<p>${escapeHtml(sale.notes)}</p>` : ""}
-    ${sale.trade_inventory_item_id ? `<p class="meta">🔄 Also received in trade: <strong>${escapeHtml(sale.trade_item_name || "an item")}</strong>${sale.trade_value != null ? ` (est. ${money(sale.trade_value)}, added to inventory)` : ""}</p>` : ""}
+    ${sale.trade_inventory_item_id ? `<p class="meta">${tradeThumb}🔄 Also received in trade: <strong>${escapeHtml(sale.trade_item_name || "an item")}</strong>${sale.trade_value != null ? ` (est. ${money(sale.trade_value)}, added to inventory)` : ""}</p>` : ""}
     <h3>Items</h3>
     ${(lines || [])
-      .map(
-        (l) => `<div class="list-row">
-          <div class="title">${escapeHtml(l.name_raw)} × ${l.quantity}</div>
+      .map((l, i) => {
+        const thumb = lineThumbUrls[i]
+          ? `<img class="thumb thumb-sm" src="${lineThumbUrls[i]}" />`
+          : `<div class="thumb-placeholder thumb-sm"></div>`;
+        return `<div class="list-row">
+          <div style="display:flex;align-items:center;gap:10px">
+            ${thumb}
+            <div class="title">${escapeHtml(l.name_raw)} × ${l.quantity}</div>
+          </div>
           <div style="text-align:right">
             <div>${money(l.unit_price)}/ea</div>
             <div class="meta">profit ${money((l.unit_price - l.unit_cost_basis) * l.quantity)}</div>
           </div>
-        </div>`,
-      )
+        </div>`;
+      })
       .join("") || `<p class="hint">No items recorded.</p>`}
     <p class="meta">Total <strong>${money(sale.total_amount)}</strong> · profit <strong>${money(totalProfit)}</strong></p>
     <div class="btn-row">
@@ -571,6 +617,8 @@ async function onConfirm() {
       const tCategory = $("t-category").value;
       const tQuantity = Number($("t-qty").value) || 1;
       const tValue = $("t-value").value === "" ? null : Number($("t-value").value);
+      const tPhotoFile = $("t-photo").files[0] || null;
+      let tradeItemId;
       if (tradeExistingItemId) {
         await updateManualInventoryItem(tradeExistingItemId, {
           name: tName,
@@ -578,7 +626,7 @@ async function onConfirm() {
           quantity: tQuantity,
           estimatedValue: tValue,
         });
-        tradeFields = { trade_inventory_item_id: tradeExistingItemId, trade_item_name: tName, trade_value: tValue };
+        tradeItemId = tradeExistingItemId;
       } else {
         const newItem = await createManualInventoryItem({
           name: tName,
@@ -587,8 +635,13 @@ async function onConfirm() {
           unitCost: 0,
           estimatedValue: tValue,
         });
-        tradeFields = { trade_inventory_item_id: newItem.id, trade_item_name: tName, trade_value: tValue };
+        tradeItemId = newItem.id;
       }
+      if (tPhotoFile) {
+        const path = await uploadMedia(tPhotoFile, "item");
+        await setInventoryImage(tradeItemId, path);
+      }
+      tradeFields = { trade_inventory_item_id: tradeItemId, trade_item_name: tName, trade_value: tValue };
     }
 
     const salePayload = {
