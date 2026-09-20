@@ -27,6 +27,8 @@ async function main() {
 
   $("filter-select").addEventListener("change", loadOrders);
   $("sort-select").addEventListener("change", loadOrders);
+  $("date-from").addEventListener("change", loadOrders);
+  $("date-to").addEventListener("change", loadOrders);
   document.querySelectorAll(".source-check").forEach((cb) => cb.addEventListener("change", loadOrders));
   $("new-shipment-btn").addEventListener("click", showNewShipmentForm);
   $("ns-cancel-btn").addEventListener("click", hideNewShipmentForm);
@@ -74,6 +76,8 @@ async function loadOrders() {
   const filter = $("filter-select").value;
   const sort = $("sort-select").value;
   const sources = Array.from(document.querySelectorAll(".source-check:checked")).map((cb) => cb.value);
+  const dateFrom = $("date-from").value;
+  const dateTo = $("date-to").value;
   const container = $("orders-list");
 
   if (!sources.length) {
@@ -81,13 +85,16 @@ async function loadOrders() {
     return;
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("purchases")
     .select(
       "id, source, order_date, total_amount, forwarder, tracking_number, status, expected_arrival_date, forwarder_shipments(*), purchase_line_items(name_raw, category)",
     )
     .neq("status", "cancelled")
     .in("source", sources);
+  if (dateFrom) query = query.gte("order_date", dateFrom);
+  if (dateTo) query = query.lte("order_date", dateTo);
+  const { data, error } = await query;
 
   if (error) {
     container.innerHTML = `<p class="field-error">${escapeHtml(error.message)}</p>`;
