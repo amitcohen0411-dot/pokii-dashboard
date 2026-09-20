@@ -22,6 +22,7 @@ async function main() {
 
   $("search-box").addEventListener("input", debounce(loadList, 250));
   document.querySelectorAll(".category-check").forEach((cb) => cb.addEventListener("change", loadList));
+  document.querySelectorAll(".location-check").forEach((cb) => cb.addEventListener("change", loadList));
   $("sort-select").addEventListener("change", loadList);
   $("back-btn").addEventListener("click", showList);
   $("show-add-btn").addEventListener("click", showAddForm);
@@ -118,6 +119,7 @@ const SORTERS = {
 async function loadList() {
   const search = $("search-box").value.trim();
   const categories = Array.from(document.querySelectorAll(".category-check:checked")).map((cb) => cb.value);
+  const locations = Array.from(document.querySelectorAll(".location-check:checked")).map((cb) => cb.value);
   const sort = $("sort-select").value;
 
   const container = $("inventory-list");
@@ -126,10 +128,15 @@ async function loadList() {
     $("unit-count").textContent = "";
     return;
   }
+  if (!locations.length) {
+    container.innerHTML = `<div class="empty-state">No location selected — check at least one above.</div>`;
+    $("unit-count").textContent = "";
+    return;
+  }
 
   let q = supabase.from("inventory_items").select("*").in("category", categories);
   if (search) q = q.ilike("name", `%${search}%`);
-  const [{ data, error }, multiplier, inTransitQty] = await Promise.all([
+  const [{ data: fetched, error }, multiplier, inTransitQty] = await Promise.all([
     q,
     getDefaultValueMultiplier(),
     getInTransitQuantities(),
@@ -139,6 +146,13 @@ async function loadList() {
     container.innerHTML = `<p class="field-error">${escapeHtml(error.message)}</p>`;
     return;
   }
+
+  const data = (fetched || []).filter((item) => {
+    const transitQty = Math.min(inTransitQty.get(item.id) || 0, item.quantity);
+    const homeQty = item.quantity - transitQty;
+    return (locations.includes("home") && homeQty > 0) || (locations.includes("transit") && transitQty > 0);
+  });
+
   if (!data.length) {
     container.innerHTML = `<div class="empty-state">Nothing matches — it fills up as you log purchases.</div>`;
     $("unit-count").textContent = "";
