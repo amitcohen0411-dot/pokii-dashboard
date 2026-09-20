@@ -26,6 +26,8 @@ async function main() {
   renderNav("orders.html");
 
   $("filter-select").addEventListener("change", loadOrders);
+  $("sort-select").addEventListener("change", loadOrders);
+  document.querySelectorAll(".source-check").forEach((cb) => cb.addEventListener("change", loadOrders));
   $("new-shipment-btn").addEventListener("click", showNewShipmentForm);
   $("ns-cancel-btn").addEventListener("click", hideNewShipmentForm);
   $("ns-forwarder").addEventListener("change", loadNewShipmentPurchaseList);
@@ -53,17 +55,39 @@ function deriveState(p) {
 // ---------------------------------------------------------------------------
 // Orders list
 // ---------------------------------------------------------------------------
+const ORDER_SORTERS = {
+  date_desc: (a, b) => new Date(b.order_date) - new Date(a.order_date),
+  date_asc: (a, b) => new Date(a.order_date) - new Date(b.order_date),
+  amount_desc: (a, b) => Number(b.total_amount) - Number(a.total_amount),
+  amount_asc: (a, b) => Number(a.total_amount) - Number(b.total_amount),
+  expected_asc: (a, b) => {
+    const ea = a.forwarder_shipments?.expected_arrival_date || (!a.forwarder ? a.expected_arrival_date : null);
+    const eb = b.forwarder_shipments?.expected_arrival_date || (!b.forwarder ? b.expected_arrival_date : null);
+    if (!ea && !eb) return 0;
+    if (!ea) return 1;
+    if (!eb) return -1;
+    return new Date(ea) - new Date(eb);
+  },
+};
+
 async function loadOrders() {
   const filter = $("filter-select").value;
+  const sort = $("sort-select").value;
+  const sources = Array.from(document.querySelectorAll(".source-check:checked")).map((cb) => cb.value);
   const container = $("orders-list");
+
+  if (!sources.length) {
+    container.innerHTML = `<div class="empty-state">No source selected — check at least one above.</div>`;
+    return;
+  }
 
   const { data, error } = await supabase
     .from("purchases")
     .select(
-      "id, source, order_date, total_amount, forwarder, tracking_number, status, expected_arrival_date, forwarder_shipments(*), purchase_line_items(name_raw)",
+      "id, source, order_date, total_amount, forwarder, tracking_number, status, expected_arrival_date, forwarder_shipments(*), purchase_line_items(name_raw, category)",
     )
     .neq("status", "cancelled")
-    .order("order_date", { ascending: false });
+    .in("source", sources);
 
   if (error) {
     container.innerHTML = `<p class="field-error">${escapeHtml(error.message)}</p>`;
@@ -72,7 +96,9 @@ async function loadOrders() {
 
   const rows = data
     .map((p) => ({ ...p, state: deriveState(p) }))
-    .filter((p) => (filter === "all" ? p.state !== "received" : p.state === filter));
+    .filter((p) => !(p.purchase_line_items || []).some((l) => l.category === "sports"))
+    .filter((p) => (filter === "all" ? p.state !== "received" : p.state === filter))
+    .sort(ORDER_SORTERS[sort]);
 
   if (!rows.length) {
     container.innerHTML = `<div class="empty-state">Nothing here right now.</div>`;
