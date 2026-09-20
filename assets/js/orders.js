@@ -4,6 +4,13 @@ import { renderNav } from "./nav.js";
 import { money, shortDate, escapeHtml } from "./format.js";
 
 const $ = (id) => document.getElementById(id);
+function debounce(fn, ms) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
 const FORWARDER_LABEL = { redbox: "Redbox", myus: "MyUS", other: "forwarder" };
 const STATE_LABEL = {
   awaiting_seller: "Awaiting seller",
@@ -29,6 +36,8 @@ async function main() {
   $("sort-select").addEventListener("change", loadOrders);
   $("date-from").addEventListener("change", loadOrders);
   $("date-to").addEventListener("change", loadOrders);
+  $("amount-min").addEventListener("input", debounce(loadOrders, 300));
+  $("amount-max").addEventListener("input", debounce(loadOrders, 300));
   document.querySelectorAll(".source-check").forEach((cb) => cb.addEventListener("change", loadOrders));
   $("new-shipment-btn").addEventListener("click", showNewShipmentForm);
   $("ns-cancel-btn").addEventListener("click", hideNewShipmentForm);
@@ -78,6 +87,8 @@ async function loadOrders() {
   const sources = Array.from(document.querySelectorAll(".source-check:checked")).map((cb) => cb.value);
   const dateFrom = $("date-from").value;
   const dateTo = $("date-to").value;
+  const amountMin = $("amount-min").value === "" ? null : Number($("amount-min").value);
+  const amountMax = $("amount-max").value === "" ? null : Number($("amount-max").value);
   const container = $("orders-list");
 
   if (!sources.length) {
@@ -94,6 +105,8 @@ async function loadOrders() {
     .in("source", sources);
   if (dateFrom) query = query.gte("order_date", dateFrom);
   if (dateTo) query = query.lte("order_date", dateTo);
+  if (amountMin !== null) query = query.gte("total_amount", amountMin);
+  if (amountMax !== null) query = query.lte("total_amount", amountMax);
   const { data, error } = await query;
 
   if (error) {

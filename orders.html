@@ -28,6 +28,12 @@
         <input id="date-to" type="date" placeholder="To" style="flex:1" />
       </div>
 
+      <label for="amount-min">Amount (₪)</label>
+      <div class="row" style="display:flex; gap:8px">
+        <input id="amount-min" type="number" min="0" step="0.01" placeholder="Min" style="flex:1" />
+        <input id="amount-max" type="number" min="0" step="0.01" placeholder="Max" style="flex:1" />
+      </div>
+
       <label>Source <span class="hint">(check any combination)</span></label>
       <div class="row" style="display:flex; gap:14px; margin-bottom:10px">
         <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
