@@ -29,7 +29,12 @@ async function main() {
   $("back-from-add-btn").addEventListener("click", showList);
   $("save-add-btn").addEventListener("click", saveManualItem);
 
-  await loadList();
+  const directId = new URLSearchParams(location.search).get("id");
+  if (directId) {
+    await openDetail(directId);
+  } else {
+    await loadList();
+  }
 }
 
 function showAddForm() {
@@ -266,8 +271,16 @@ async function openDetail(id) {
     </div>`
     : "";
 
+  const priceReviewHtml = item.details?.needs_price_review
+    ? `<div class="card" style="border-color:var(--negative, #c0392b);margin-bottom:12px">
+        <strong>Needs a price</strong>
+        <p class="hint" style="margin:4px 0 0">${escapeHtml(item.details.price_review_reason || "Couldn't be priced automatically — set a value below.")}</p>
+      </div>`
+    : "";
+
   body.innerHTML = `
     ${imageHtml}
+    ${priceReviewHtml}
     <label for="i-photo">${item.image_url ? "Replace photo" : "Add a photo"}</label>
     <input id="i-photo" type="file" accept="image/*" />
 
@@ -333,7 +346,7 @@ async function openDetail(id) {
         .update({
           name: $("i-name").value,
           category: $("i-category").value,
-          details: { note: $("i-details").value },
+          details: { ...item.details, note: $("i-details").value },
           updated_at: new Date().toISOString(),
         })
         .eq("id", id);

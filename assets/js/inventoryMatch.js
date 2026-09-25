@@ -106,10 +106,17 @@ export async function addStock(itemId, quantity, unitCost, itemOnlyPrice = unitC
 }
 
 export async function setEstimatedValue(itemId, value) {
-  const { error } = await supabase
-    .from("inventory_items")
-    .update({ estimated_value: value, updated_at: new Date().toISOString() })
-    .eq("id", itemId);
+  const update = { estimated_value: value, updated_at: new Date().toISOString() };
+  if (value != null) {
+    // Giving the item a real value resolves any "needs price review" flag
+    // (set when an automated price lookup couldn't confidently price it).
+    const { data: current } = await supabase.from("inventory_items").select("details").eq("id", itemId).single();
+    if (current?.details?.needs_price_review) {
+      const { needs_price_review, price_review_reason, ...rest } = current.details;
+      update.details = rest;
+    }
+  }
+  const { error } = await supabase.from("inventory_items").update(update).eq("id", itemId);
   if (error) throw error;
 }
 

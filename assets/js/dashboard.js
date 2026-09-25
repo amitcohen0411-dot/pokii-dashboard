@@ -263,7 +263,7 @@ async function loadNeedsAttention() {
   const slowCutoff = new Date(Date.now() - SLOW_MOVER_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const today = new Date().toISOString().slice(0, 10);
 
-  const [stuckRes, slowRes, unpaidRes, overdueRes, multiplier] = await Promise.all([
+  const [stuckRes, slowRes, unpaidRes, overdueRes, priceReviewRes, multiplier] = await Promise.all([
     supabase
       .from("purchases")
       .select("id, source, order_date, status, total_amount")
@@ -287,11 +287,20 @@ async function loadNeedsAttention() {
       .lt("expected_arrival_date", today)
       .order("expected_arrival_date")
       .limit(5),
+    supabase.from("inventory_items").select("id, name, details").contains("details", { needs_price_review: true }).limit(10),
     getDefaultValueMultiplier(),
   ]);
-  for (const r of [stuckRes, slowRes, unpaidRes, overdueRes]) if (r.error) throw r.error;
+  for (const r of [stuckRes, slowRes, unpaidRes, overdueRes, priceReviewRes]) if (r.error) throw r.error;
 
   const rows = [];
+  priceReviewRes.data.forEach((item) =>
+    rows.push({
+      badge: "Needs a price",
+      title: item.name,
+      meta: item.details?.price_review_reason || "Couldn't be priced automatically",
+      href: `inventory.html?id=${item.id}`,
+    }),
+  );
   unpaidRes.data.forEach((s) =>
     rows.push({
       badge: "Unpaid shipment",
