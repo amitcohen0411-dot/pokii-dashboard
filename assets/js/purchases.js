@@ -13,7 +13,7 @@ let editingPurchaseId = null;
 let editingOriginalMedia = { url: null, type: null };
 
 const $ = (id) => document.getElementById(id);
-const CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon card", other: "Other" };
+const CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon / DBZ / One Piece", other: "Other" };
 
 const FORWARDER_LABEL = { redbox: "Redbox", myus: "MyUS", other: "forwarder" };
 
@@ -436,7 +436,7 @@ function renderDraftLines() {
           <label>Category</label>
           <select class="f-category">
             <option value="funko" ${line.category === "funko" ? "selected" : ""}>Funko</option>
-            <option value="pokemon_card" ${line.category === "pokemon_card" ? "selected" : ""}>Pokémon card</option>
+            <option value="pokemon_card" ${line.category === "pokemon_card" ? "selected" : ""}>Pokémon / DBZ / One Piece</option>
             <option value="other" ${line.category === "other" ? "selected" : ""}>Other</option>
           </select>
         </div>

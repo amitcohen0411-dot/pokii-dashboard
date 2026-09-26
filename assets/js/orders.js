@@ -157,7 +157,7 @@ async function loadOrders() {
 // ---------------------------------------------------------------------------
 // Spend by category
 // ---------------------------------------------------------------------------
-const SPEND_CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon card", sports: "Sports", other: "Other" };
+const SPEND_CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon / DBZ / One Piece", sports: "Sports", other: "Other" };
 
 // A line's real category isn't always purchase_line_items.category — that
 // column was only ever kept accurate for 'sports' (which is never linked to

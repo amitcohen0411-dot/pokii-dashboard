@@ -13,7 +13,7 @@ import {
 } from "./inventoryMatch.js";
 
 const $ = (id) => document.getElementById(id);
-const CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon card", other: "Other" };
+const CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon / DBZ / One Piece", other: "Other" };
 
 async function main() {
   const session = await requireSession();
@@ -289,7 +289,7 @@ async function openDetail(id) {
     <label for="i-category">Category</label>
     <select id="i-category">
       <option value="funko" ${item.category === "funko" ? "selected" : ""}>Funko</option>
-      <option value="pokemon_card" ${item.category === "pokemon_card" ? "selected" : ""}>Pokémon card</option>
+      <option value="pokemon_card" ${item.category === "pokemon_card" ? "selected" : ""}>Pokémon / DBZ / One Piece</option>
       <option value="other" ${item.category === "other" ? "selected" : ""}>Other</option>
     </select>
     <label for="i-details">Details / notes</label>
