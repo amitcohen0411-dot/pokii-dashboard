@@ -45,7 +45,7 @@ async function main() {
   $("ns-forwarder").addEventListener("change", loadNewShipmentPurchaseList);
   $("ns-create-btn").addEventListener("click", createShipment);
 
-  await Promise.all([loadOrders(), loadShipments(), loadSpendByCategory()]);
+  await Promise.all([loadOrders(), loadShipments(), loadSpendByCategory(), loadCardBalance()]);
 }
 
 function deriveState(p) {
@@ -167,6 +167,14 @@ const SPEND_CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon card", sp
 function resolveLineCategory(line) {
   if (line.category === "sports") return "sports";
   return line.inventory_items?.category || line.category || "other";
+}
+
+async function loadCardBalance() {
+  const { data, error } = await supabase.from("account_balances").select("current_balance").eq("id", "card").single();
+  if (error) throw error;
+  const el = $("spend-card-balance");
+  el.textContent = money(data.current_balance);
+  el.className = "stat-value " + (Number(data.current_balance) < 0 ? "negative" : "positive");
 }
 
 async function loadSpendByCategory() {
