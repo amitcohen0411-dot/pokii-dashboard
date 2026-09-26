@@ -58,6 +58,26 @@
       <p class="spinner-text">Loading…</p>
     </div>
 
+    <h2 style="margin:28px 0 8px">Spend by category</h2>
+    <p class="hint">Uses the order date and source filters above. Check any combination to see what you spent on just those.</p>
+    <div class="card">
+      <div class="row" style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
+          <input type="checkbox" class="spend-category-check" value="funko" checked /> Funko
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
+          <input type="checkbox" class="spend-category-check" value="pokemon_card" checked /> Pokémon card
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
+          <input type="checkbox" class="spend-category-check" value="sports" checked /> Sports
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-weight:normal;color:var(--text)">
+          <input type="checkbox" class="spend-category-check" value="other" checked /> Other
+        </label>
+      </div>
+      <div id="spend-by-category"><p class="spinner-text">Loading…</p></div>
+    </div>
+
     <h2 style="margin:28px 0 8px">Forwarder shipments</h2>
     <p class="hint">One outbound shipment can bundle several purchases sitting at the same forwarder.</p>
 

@@ -34,17 +34,18 @@ async function main() {
 
   $("filter-select").addEventListener("change", loadOrders);
   $("sort-select").addEventListener("change", loadOrders);
-  $("date-from").addEventListener("change", loadOrders);
-  $("date-to").addEventListener("change", loadOrders);
+  $("date-from").addEventListener("change", () => Promise.all([loadOrders(), loadSpendByCategory()]));
+  $("date-to").addEventListener("change", () => Promise.all([loadOrders(), loadSpendByCategory()]));
   $("amount-min").addEventListener("input", debounce(loadOrders, 300));
   $("amount-max").addEventListener("input", debounce(loadOrders, 300));
-  document.querySelectorAll(".source-check").forEach((cb) => cb.addEventListener("change", loadOrders));
+  document.querySelectorAll(".source-check").forEach((cb) => cb.addEventListener("change", () => Promise.all([loadOrders(), loadSpendByCategory()])));
+  document.querySelectorAll(".spend-category-check").forEach((cb) => cb.addEventListener("change", loadSpendByCategory));
   $("new-shipment-btn").addEventListener("click", showNewShipmentForm);
   $("ns-cancel-btn").addEventListener("click", hideNewShipmentForm);
   $("ns-forwarder").addEventListener("change", loadNewShipmentPurchaseList);
   $("ns-create-btn").addEventListener("click", createShipment);
 
-  await Promise.all([loadOrders(), loadShipments()]);
+  await Promise.all([loadOrders(), loadShipments(), loadSpendByCategory()]);
 }
 
 function deriveState(p) {
@@ -151,6 +152,76 @@ async function loadOrders() {
       window.location.href = `purchases.html?id=${el.dataset.id}`;
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Spend by category
+// ---------------------------------------------------------------------------
+const SPEND_CATEGORY_LABEL = { funko: "Funko", pokemon_card: "Pokémon card", sports: "Sports", other: "Other" };
+
+// A line's real category isn't always purchase_line_items.category — that
+// column was only ever kept accurate for 'sports' (which is never linked to
+// an inventory item by design). For everything else, the linked inventory
+// item's own category is the source of truth, since it's the one users
+// actually edit after the fact.
+function resolveLineCategory(line) {
+  if (line.category === "sports") return "sports";
+  return line.inventory_items?.category || line.category || "other";
+}
+
+async function loadSpendByCategory() {
+  const sources = Array.from(document.querySelectorAll(".source-check:checked")).map((cb) => cb.value);
+  const checkedCategories = Array.from(document.querySelectorAll(".spend-category-check:checked")).map((cb) => cb.value);
+  const dateFrom = $("date-from").value;
+  const dateTo = $("date-to").value;
+  const container = $("spend-by-category");
+
+  if (!sources.length) {
+    container.innerHTML = `<p class="hint">No source selected above.</p>`;
+    return;
+  }
+
+  let query = supabase
+    .from("purchases")
+    .select("order_date, source, purchase_line_items(quantity, unit_cost, category, inventory_items(category))")
+    .neq("status", "cancelled")
+    .in("source", sources);
+  if (dateFrom) query = query.gte("order_date", dateFrom);
+  if (dateTo) query = query.lte("order_date", dateTo);
+  const { data, error } = await query;
+
+  if (error) {
+    container.innerHTML = `<p class="field-error">${escapeHtml(error.message)}</p>`;
+    return;
+  }
+
+  const totals = {};
+  for (const p of data) {
+    for (const line of p.purchase_line_items || []) {
+      const cat = resolveLineCategory(line);
+      totals[cat] = (totals[cat] || 0) + Number(line.unit_cost) * line.quantity;
+    }
+  }
+
+  if (!checkedCategories.length) {
+    container.innerHTML = `<p class="hint">No category selected — check at least one above.</p>`;
+    return;
+  }
+
+  const grandTotal = checkedCategories.reduce((sum, cat) => sum + (totals[cat] || 0), 0);
+  container.innerHTML =
+    checkedCategories
+      .map(
+        (cat) => `<div class="list-row">
+          <div class="title">${SPEND_CATEGORY_LABEL[cat]}</div>
+          <div class="title">${money(totals[cat] || 0)}</div>
+        </div>`,
+      )
+      .join("") +
+    `<div class="list-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:10px">
+      <div class="title">Total (selected)</div>
+      <div class="title">${money(grandTotal)}</div>
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
